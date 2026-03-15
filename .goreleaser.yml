@@ -1,18 +1,18 @@
 version: 2
 
-project_name: authent
+project_name: autent
 
 builds:
-  - id: authent-example
-    main: ./cmd/authent-example
-    binary: authent-example
+  - id: autent-example
+    main: ./cmd/autent-example
+    binary: autent-example
     env:
       - CGO_ENABLED=0
 
 archives:
   - id: default
     ids:
-      - authent-example
+      - autent-example
 
 checksum:
   name_template: checksums.txt
@@ -22,4 +22,3 @@ snapshot:
 
 changelog:
   use: github-native
-

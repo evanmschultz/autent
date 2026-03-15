@@ -64,6 +64,27 @@ func TestNewPrincipalRejectsInvalidValues(t *testing.T) {
 	}
 }
 
+// TestPrincipalUpdateStatus verifies principal status transitions.
+func TestPrincipalUpdateStatus(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.March, 15, 12, 0, 0, 0, time.UTC)
+	principal, err := NewPrincipal(PrincipalInput{
+		ID:          "p1",
+		Type:        PrincipalTypeUser,
+		DisplayName: "User",
+	}, now)
+	if err != nil {
+		t.Fatalf("NewPrincipal() error = %v", err)
+	}
+	if err := principal.UpdateStatus(StatusDisabled, now.Add(time.Minute)); err != nil {
+		t.Fatalf("UpdateStatus() error = %v", err)
+	}
+	if principal.IsActive() {
+		t.Fatal("principal should be disabled")
+	}
+}
+
 // TestNewClient verifies client construction and normalization.
 func TestNewClient(t *testing.T) {
 	t.Parallel()
@@ -118,5 +139,26 @@ func TestNewClientRejectsInvalidValues(t *testing.T) {
 				t.Fatalf("NewClient() error = %v, want %v", err, test.want)
 			}
 		})
+	}
+}
+
+// TestClientUpdateStatus verifies client status transitions.
+func TestClientUpdateStatus(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.March, 15, 12, 0, 0, 0, time.UTC)
+	client, err := NewClient(ClientInput{
+		ID:          "c1",
+		DisplayName: "Client",
+		Type:        "cli",
+	}, now)
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+	if err := client.UpdateStatus(StatusDisabled, now.Add(time.Minute)); err != nil {
+		t.Fatalf("UpdateStatus() error = %v", err)
+	}
+	if client.IsActive() {
+		t.Fatal("client should be disabled")
 	}
 }

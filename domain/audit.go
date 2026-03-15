@@ -10,6 +10,10 @@ const (
 	AuditEventPrincipalCreated AuditEventType = "principal_created"
 	// AuditEventClientCreated records client creation.
 	AuditEventClientCreated AuditEventType = "client_created"
+	// AuditEventPrincipalUpdated records principal updates such as status changes.
+	AuditEventPrincipalUpdated AuditEventType = "principal_updated"
+	// AuditEventClientUpdated records client updates such as status changes.
+	AuditEventClientUpdated AuditEventType = "client_updated"
 	// AuditEventSessionIssued records session issuance.
 	AuditEventSessionIssued AuditEventType = "session_issued"
 	// AuditEventSessionValidated records successful session validation.

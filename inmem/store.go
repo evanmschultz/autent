@@ -73,6 +73,17 @@ func (s *Store) ListPrincipals(_ context.Context) ([]domain.Principal, error) {
 	return out, nil
 }
 
+// UpdatePrincipal replaces a stored principal.
+func (s *Store) UpdatePrincipal(_ context.Context, principal domain.Principal) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.principals[principal.ID]; !ok {
+		return domain.ErrPrincipalNotFound
+	}
+	s.principals[principal.ID] = clonePrincipal(principal)
+	return nil
+}
+
 // CreateClient stores a client.
 func (s *Store) CreateClient(_ context.Context, client domain.Client) error {
 	s.mu.Lock()
@@ -105,6 +116,17 @@ func (s *Store) ListClients(_ context.Context) ([]domain.Client, error) {
 	}
 	slices.SortFunc(out, func(a, b domain.Client) int { return strings.Compare(a.ID, b.ID) })
 	return out, nil
+}
+
+// UpdateClient replaces a stored client.
+func (s *Store) UpdateClient(_ context.Context, client domain.Client) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.clients[client.ID]; !ok {
+		return domain.ErrClientNotFound
+	}
+	s.clients[client.ID] = cloneClient(client)
+	return nil
 }
 
 // CreateSession stores a session.
@@ -358,6 +380,14 @@ func (s lockedStore) ListPrincipals(_ context.Context) ([]domain.Principal, erro
 	return out, nil
 }
 
+func (s lockedStore) UpdatePrincipal(_ context.Context, principal domain.Principal) error {
+	if _, ok := s.base.principals[principal.ID]; !ok {
+		return domain.ErrPrincipalNotFound
+	}
+	s.base.principals[principal.ID] = clonePrincipal(principal)
+	return nil
+}
+
 func (s lockedStore) CreateClient(_ context.Context, client domain.Client) error {
 	if _, ok := s.base.clients[client.ID]; ok {
 		return fmt.Errorf("create client %q: %w", client.ID, domain.ErrAlreadyExists)
@@ -381,6 +411,14 @@ func (s lockedStore) ListClients(_ context.Context) ([]domain.Client, error) {
 	}
 	slices.SortFunc(out, func(a, b domain.Client) int { return strings.Compare(a.ID, b.ID) })
 	return out, nil
+}
+
+func (s lockedStore) UpdateClient(_ context.Context, client domain.Client) error {
+	if _, ok := s.base.clients[client.ID]; !ok {
+		return domain.ErrClientNotFound
+	}
+	s.base.clients[client.ID] = cloneClient(client)
+	return nil
 }
 
 func (s lockedStore) CreateSession(_ context.Context, session domain.Session) error {

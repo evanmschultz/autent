@@ -1,54 +1,54 @@
-# authent
+# autent
 
-`authent` is a small Go library and runtime foundation for real authentication, session management, authorization, explicit grant escalation, and audit in agentic systems.
+`autent` is a small Go auth library for agentic systems.
 
-Status: active v0 implementation
+The name is `autent`, not `authent`.
+It is Swedish-flavored branding: close to "authentic" and also a slightly cheeky shortening inspired by `autentisering` ("authentication").
 
-First consumers:
+`autent` is meant to be embedded as a Go module inside another Go project.
+It is not an HTTP server, not an MCP server, and not a standalone auth daemon by default.
 
-- `blick`
-- `tillsyn`
+## What It Does
 
-## Why This Exists
-
-`authent` exists to stop app-local auth from collapsing into transport hacks, weak session semantics, product-specific scope names, and unauditable mutation paths.
-
-It should answer four questions cleanly:
+`autent` answers four questions cleanly:
 
 1. Who is calling?
 2. What authenticated session are they operating under?
 3. What resource and action are they requesting?
-4. Is the result `allow`, `deny`, `grant_required`, or `session_required`?
+4. Is the result `allow`, `deny`, `grant_required`, `session_required`, `session_expired`, or `invalid`?
 
-## Product Position
+Core responsibilities:
 
-`authent` should be:
+- authentication
+- session lifecycle
+- authorization
+- explicit grant escalation
+- audit
 
-- small,
-- real,
-- session-based,
-- policy-driven,
-- audit-friendly,
-- generic at the resource/action layer,
-- easy to embed.
+Non-goals:
 
-`authent` should not be:
+- HTTP routing
+- MCP server behavior
+- workflow orchestration
+- consumer-specific hierarchy semantics
+- approval UI
 
-- an MCP framework,
-- a workflow system,
-- a consumer-specific policy UI,
-- a side-channel for sandbox escape behavior.
+## Why It Exists
 
-## Architecture
+Local auth code in agent systems tends to decay into:
 
-The repo is structured around four layers:
+- transport-specific hacks
+- context-only identity propagation
+- weak session semantics
+- app-specific scope names
+- mixed auth and workflow behavior
+- poor auditability
 
-- `domain`: pure types and invariants.
-- `app`: use-cases and orchestration over ports.
-- `store` / `token` / `audit`: shared adapter contracts.
-- `sqlite`, `inmem`: concrete storage adapters.
+`autent` exists to give `blick`, `tillsyn`, and similar Go projects a reusable auth foundation without forcing them into a framework.
 
-Current package set:
+## Package Shape
+
+Current packages:
 
 - `github.com/evanmschultz/autent`
 - `github.com/evanmschultz/autent/app`
@@ -56,47 +56,87 @@ Current package set:
 - `github.com/evanmschultz/autent/store`
 - `github.com/evanmschultz/autent/token`
 - `github.com/evanmschultz/autent/audit`
-- `github.com/evanmschultz/autent/sqlite`
 - `github.com/evanmschultz/autent/inmem`
+- `github.com/evanmschultz/autent/sqlite`
 
-## Current Decisions
+Layering:
 
-Recommended v0 defaults:
+- `domain`: pure types, invariants, matching logic, typed errors
+- `app`: use-cases and orchestration over ports
+- `store` / `token` / `audit`: adapter contracts
+- `inmem` / `sqlite`: concrete adapters
 
-- opaque session secrets, not self-contained JWTs, by default,
-- grants tied to principal plus bounded request context, not just raw session id,
-- simple selectors plus minimal conditions for v0 policy,
-- generic resource matching with exact, prefix, and basic glob-style support,
-- synchronous audit by default,
-- library-first delivery before any standalone service runtime.
+## Current MVP Scope
+
+Implemented:
+
+- principal and client registration
+- principal and client enable or disable flows
+- opaque session issue, validate, and revoke
+- rule-based authorization with explicit deny precedence
+- explicit grant request, approve, deny, and cancel flows
+- append-only audit events
+- in-memory and SQLite adapters
+- example CLI for human testing
+
+Recommended defaults:
+
+- opaque session secrets, not self-contained JWTs
+- hashed secrets at rest
+- deny by default
+- explicit grants
+- synchronous audit
+- library-first embedding
 
 ## Local Commands
 
 ```bash
-just run
 just check
 just ci
 ```
 
-The example binary at `cmd/authent-example` is the human-test harness for the library.
+## SQLite Integration Modes
 
-## Human Test
+`autent` can be embedded in two ways:
 
-Use one local SQLite file for the flow:
+- dedicated `autent.db` style file for auth state
+- shared application database with a configurable table prefix
 
-```bash
-DB=.tmp/authent-demo.db
+Examples:
 
-go run ./cmd/authent-example principal create --db "$DB" --id user-1 --type user --name "User One"
-go run ./cmd/authent-example client create --db "$DB" --id cli-1 --type cli --name "CLI"
-go run ./cmd/authent-example policy load-demo --db "$DB"
-go run ./cmd/authent-example session issue --db "$DB" --principal user-1 --client cli-1
+```go
+repo, err := sqlite.Open("autent.db")
 ```
 
-Take the returned `session_id` and `session_secret`, then drive the auth flow:
+```go
+repo, err := sqlite.OpenWithOptions("app.db", sqlite.Options{
+    TablePrefix: "autent_",
+})
+```
+
+```go
+repo, err := sqlite.OpenDB(existingDB, sqlite.Options{
+    TablePrefix: "autent_",
+})
+```
+
+## Human Testing
+
+Use one local SQLite file for the full demo flow:
 
 ```bash
-go run ./cmd/authent-example authz check --db "$DB" \
+DB=.tmp/autent-demo.db
+
+go run ./cmd/autent-example principal create --db "$DB" --id user-1 --type user --name "User One"
+go run ./cmd/autent-example client create --db "$DB" --id cli-1 --type cli --name "CLI"
+go run ./cmd/autent-example policy load-demo --db "$DB"
+go run ./cmd/autent-example session issue --db "$DB" --principal user-1 --client cli-1
+```
+
+Take the returned `session_id` and `session_secret`, then:
+
+```bash
+go run ./cmd/autent-example authz check --db "$DB" \
   --session <session_id> \
   --secret <session_secret> \
   --action read \
@@ -104,7 +144,7 @@ go run ./cmd/authent-example authz check --db "$DB" \
   --resource-type task \
   --resource-id task-1
 
-go run ./cmd/authent-example grant request --db "$DB" \
+go run ./cmd/autent-example grant request --db "$DB" \
   --session <session_id> \
   --secret <session_secret> \
   --action mutate \
@@ -114,13 +154,13 @@ go run ./cmd/authent-example grant request --db "$DB" \
   --context scope=current \
   --reason "need one mutation"
 
-go run ./cmd/authent-example grant approve --db "$DB" \
+go run ./cmd/autent-example grant approve --db "$DB" \
   --grant-id <grant_id> \
   --actor approver-1 \
   --note approved \
   --usage-limit 1
 
-go run ./cmd/authent-example audit list --db "$DB"
+go run ./cmd/autent-example audit list --db "$DB"
 ```
 
 Expected behavior:
@@ -128,34 +168,27 @@ Expected behavior:
 - `read` returns `allow`
 - `mutate` returns `grant_required` until approved
 - one approved grant allows one retry, then requires a new grant
-- `session revoke` makes later checks fail with a session-based denial
+- `session revoke` makes later checks fail with a session-based invalid result
 
-The built-in demo policy allows `read` on `project:demo/task:task-1` and requires an explicit one-time grant for `mutate` on the same resource when `scope=current`.
+## Documentation
 
-## Repository Bootstrap
+Detailed docs live under [`docs/`](./docs):
 
-This repository intentionally starts with a thin scaffold:
+- [Architecture](./docs/01-architecture.md)
+- [Trust Model](./docs/02-trust-model.md)
+- [SQLite Integration Modes](./docs/03-sqlite-integration.md)
+- [Human Testing](./docs/04-human-testing.md)
+- [blick Integration Notes](./docs/05-blick-integration.md)
+- [tillsyn Integration Notes](./docs/06-tillsyn-integration.md)
 
-- `AGENTS.md` defines contributor and agent rules,
-- `PLAN.md` captures the current v0 design and build order,
-- `Justfile` is the command source of truth,
-- `.github/workflows/` mirrors `just check` and `just ci`,
-- `.tmp/` is ignored local scratch space for comparative research.
+Contributor and process guidance:
 
-## Current Build Scope
+- [CONTRIBUTING.md](./CONTRIBUTING.md)
+- [PLAN.md](./PLAN.md)
+- [WORKLOG.md](./WORKLOG.md)
+- [AGENTS.md](./AGENTS.md)
 
-Implemented and under test:
+## License
 
-- principal and client registration,
-- opaque session issue, validate, and revoke,
-- rule-based authorization with explicit deny precedence,
-- explicit grant request and resolution,
-- append-only audit events,
-- in-memory and SQLite persistence adapters.
-
-Notably out of scope for v0:
-
-- HTTP routing,
-- MCP transport helpers,
-- consumer-specific hierarchy logic,
-- approval UI.
+`autent` is licensed under the Apache License 2.0.
+See [LICENSE](./LICENSE).

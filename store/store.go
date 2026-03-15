@@ -11,6 +11,7 @@ import (
 type PrincipalStore interface {
 	CreatePrincipal(ctx context.Context, principal domain.Principal) error
 	GetPrincipal(ctx context.Context, id string) (domain.Principal, error)
+	UpdatePrincipal(ctx context.Context, principal domain.Principal) error
 	ListPrincipals(ctx context.Context) ([]domain.Principal, error)
 }
 
@@ -18,6 +19,7 @@ type PrincipalStore interface {
 type ClientStore interface {
 	CreateClient(ctx context.Context, client domain.Client) error
 	GetClient(ctx context.Context, id string) (domain.Client, error)
+	UpdateClient(ctx context.Context, client domain.Client) error
 	ListClients(ctx context.Context) ([]domain.Client, error)
 }
 

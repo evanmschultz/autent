@@ -519,6 +519,124 @@ func TestServiceAuthorizeDisabledPrincipalReturnsDecision(t *testing.T) {
 	}
 }
 
+// TestServiceUpdateStatuses verifies principal and client status updates.
+func TestServiceUpdateStatuses(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.March, 15, 12, 0, 0, 0, time.UTC)
+	service := newTestService(t, func() time.Time { return now })
+
+	principal, err := service.RegisterPrincipal(context.Background(), domain.PrincipalInput{
+		ID:          "principal-1",
+		Type:        domain.PrincipalTypeUser,
+		DisplayName: "User One",
+	})
+	if err != nil {
+		t.Fatalf("RegisterPrincipal() error = %v", err)
+	}
+	client, err := service.RegisterClient(context.Background(), domain.ClientInput{
+		ID:          "client-1",
+		DisplayName: "CLI",
+		Type:        "cli",
+	})
+	if err != nil {
+		t.Fatalf("RegisterClient() error = %v", err)
+	}
+	updatedPrincipal, err := service.UpdatePrincipalStatus(context.Background(), UpdatePrincipalStatusInput{
+		PrincipalID: principal.ID,
+		Status:      domain.StatusDisabled,
+		Actor:       "operator-1",
+		Reason:      "offboarded",
+	})
+	if err != nil {
+		t.Fatalf("UpdatePrincipalStatus() error = %v", err)
+	}
+	if updatedPrincipal.Status != domain.StatusDisabled {
+		t.Fatalf("updatedPrincipal.Status = %q, want disabled", updatedPrincipal.Status)
+	}
+	updatedClient, err := service.UpdateClientStatus(context.Background(), UpdateClientStatusInput{
+		ClientID: client.ID,
+		Status:   domain.StatusDisabled,
+		Actor:    "operator-1",
+		Reason:   "paused",
+	})
+	if err != nil {
+		t.Fatalf("UpdateClientStatus() error = %v", err)
+	}
+	if updatedClient.Status != domain.StatusDisabled {
+		t.Fatalf("updatedClient.Status = %q, want disabled", updatedClient.Status)
+	}
+}
+
+// TestServiceCancelGrant verifies pending grants can be canceled.
+func TestServiceCancelGrant(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.March, 15, 12, 0, 0, 0, time.UTC)
+	service := newTestService(t, func() time.Time { return now })
+
+	principal, err := service.RegisterPrincipal(context.Background(), domain.PrincipalInput{
+		ID:          "principal-1",
+		Type:        domain.PrincipalTypeUser,
+		DisplayName: "User One",
+	})
+	if err != nil {
+		t.Fatalf("RegisterPrincipal() error = %v", err)
+	}
+	client, err := service.RegisterClient(context.Background(), domain.ClientInput{
+		ID:          "client-1",
+		DisplayName: "CLI",
+		Type:        "cli",
+	})
+	if err != nil {
+		t.Fatalf("RegisterClient() error = %v", err)
+	}
+	issued, err := service.IssueSession(context.Background(), IssueSessionInput{
+		PrincipalID: principal.ID,
+		ClientID:    client.ID,
+	})
+	if err != nil {
+		t.Fatalf("IssueSession() error = %v", err)
+	}
+	if _, err := service.PutRule(context.Background(), domain.Rule{
+		ID:     "grantable",
+		Effect: domain.EffectAllow,
+		Actions: []domain.StringPattern{
+			{Operator: domain.MatchExact, Value: "mutate"},
+		},
+		Resources: []domain.ResourcePattern{
+			{
+				Namespace: domain.StringPattern{Operator: domain.MatchExact, Value: "project:demo"},
+				Type:      domain.StringPattern{Operator: domain.MatchExact, Value: "task"},
+				ID:        domain.StringPattern{Operator: domain.MatchExact, Value: "task-1"},
+			},
+		},
+		Escalation: &domain.EscalationRequirement{Allowed: true},
+	}); err != nil {
+		t.Fatalf("PutRule() error = %v", err)
+	}
+	grant, err := service.RequestGrant(context.Background(), RequestGrantInput{
+		SessionID:     issued.Session.ID,
+		SessionSecret: issued.Secret,
+		Action:        "mutate",
+		Resource: domain.ResourceRef{
+			Namespace: "project:demo",
+			Type:      "task",
+			ID:        "task-1",
+		},
+	})
+	if err != nil {
+		t.Fatalf("RequestGrant() error = %v", err)
+	}
+	canceled, err := service.CancelGrant(context.Background(), grant.ID, "operator-1", "no longer needed")
+	if err != nil {
+		t.Fatalf("CancelGrant() error = %v", err)
+	}
+	if canceled.State != domain.GrantStateCanceled {
+		t.Fatalf("canceled.State = %q, want canceled", canceled.State)
+	}
+}
+
 // newTestService constructs a service backed by the in-memory repository.
 func newTestService(t *testing.T, clock func() time.Time) *Service {
 	t.Helper()

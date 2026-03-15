@@ -116,22 +116,22 @@ test-pkg pkg:
 build:
   @if [ ! -f go.mod ]; then \
     echo "skip build: go.mod not initialized yet"; \
-  elif [ ! -d ./cmd/authent-example ]; then \
-    echo "skip build: ./cmd/authent-example not present"; \
+  elif [ ! -d ./cmd/autent-example ]; then \
+    echo "skip build: ./cmd/autent-example not present"; \
   else \
     mkdir -p ./bin; \
-    GOFLAGS="${GOFLAGS:+$GOFLAGS }-buildvcs=false" go build -o ./bin/authent-example ./cmd/authent-example; \
+    GOFLAGS="${GOFLAGS:+$GOFLAGS }-buildvcs=false" go build -o ./bin/autent-example ./cmd/autent-example; \
   fi
 
 run:
   @if [ ! -f go.mod ]; then \
     echo "run failed: go.mod not initialized yet"; \
     exit 1; \
-  elif [ ! -d ./cmd/authent-example ]; then \
-    echo "run failed: expected ./cmd/authent-example to exist"; \
+  elif [ ! -d ./cmd/autent-example ]; then \
+    echo "run failed: expected ./cmd/autent-example to exist"; \
     exit 1; \
   else \
-    GOFLAGS="${GOFLAGS:+$GOFLAGS }-buildvcs=false" go run ./cmd/authent-example; \
+    GOFLAGS="${GOFLAGS:+$GOFLAGS }-buildvcs=false" go run ./cmd/autent-example; \
   fi
 
 [private]

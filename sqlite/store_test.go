@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -18,7 +19,7 @@ import (
 func TestSQLiteServiceFlow(t *testing.T) {
 	t.Parallel()
 
-	dbPath := filepath.Join(t.TempDir(), "authent.db")
+	dbPath := filepath.Join(t.TempDir(), "autent.db")
 	repo, err := Open(dbPath)
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
@@ -340,6 +341,60 @@ func TestSQLiteWithinTxRollback(t *testing.T) {
 	}
 	if _, err := repo.GetPrincipal(context.Background(), principal.ID); !errors.Is(err, domain.ErrPrincipalNotFound) {
 		t.Fatalf("GetPrincipal(after rollback) error = %v, want ErrPrincipalNotFound", err)
+	}
+}
+
+// TestSQLiteOpenDBWithPrefix verifies the adapter can share one caller-owned database with prefixed tables.
+func TestSQLiteOpenDBWithPrefix(t *testing.T) {
+	t.Parallel()
+
+	dbPath := filepath.Join(t.TempDir(), "shared.db")
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("sql.Open() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = db.Close()
+	})
+
+	repo, err := OpenDB(db, Options{TablePrefix: "hostauth_"})
+	if err != nil {
+		t.Fatalf("OpenDB() error = %v", err)
+	}
+
+	now := time.Date(2026, time.March, 15, 12, 0, 0, 0, time.UTC)
+	principal, err := domain.NewPrincipal(domain.PrincipalInput{
+		ID:          "principal-1",
+		Type:        domain.PrincipalTypeUser,
+		DisplayName: "User One",
+	}, now)
+	if err != nil {
+		t.Fatalf("NewPrincipal() error = %v", err)
+	}
+	if err := repo.CreatePrincipal(context.Background(), principal); err != nil {
+		t.Fatalf("CreatePrincipal() error = %v", err)
+	}
+	if _, err := repo.GetPrincipal(context.Background(), principal.ID); err != nil {
+		t.Fatalf("GetPrincipal() error = %v", err)
+	}
+
+	var count int
+	row := db.QueryRowContext(context.Background(), "SELECT COUNT(*) FROM hostauth_principals")
+	if err := row.Scan(&count); err != nil {
+		t.Fatalf("Scan(prefixed principals count) error = %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("prefixed principals count = %d, want 1", count)
+	}
+}
+
+// TestSQLiteOpenRejectsInvalidPrefix verifies shared-DB table prefixes are validated.
+func TestSQLiteOpenRejectsInvalidPrefix(t *testing.T) {
+	t.Parallel()
+
+	dbPath := filepath.Join(t.TempDir(), "invalid-prefix.db")
+	if _, err := OpenWithOptions(dbPath, Options{TablePrefix: "bad-prefix;"}); !errors.Is(err, domain.ErrInvalidConfig) {
+		t.Fatalf("OpenWithOptions() error = %v, want ErrInvalidConfig", err)
 	}
 }
 

@@ -82,6 +82,22 @@ type ResolveGrantInput struct {
 	UsageLimit int
 }
 
+// UpdatePrincipalStatusInput carries fields used to change one principal status.
+type UpdatePrincipalStatusInput struct {
+	PrincipalID string
+	Status      domain.Status
+	Actor       string
+	Reason      string
+}
+
+// UpdateClientStatusInput carries fields used to change one client status.
+type UpdateClientStatusInput struct {
+	ClientID string
+	Status   domain.Status
+	Actor    string
+	Reason   string
+}
+
 // Service orchestrates autent use-cases across domain types and ports.
 type Service struct {
 	repo       store.Repository
@@ -186,6 +202,74 @@ func (s *Service) ListPrincipals(ctx context.Context) ([]domain.Principal, error
 // ListClients returns all stored clients.
 func (s *Service) ListClients(ctx context.Context) ([]domain.Client, error) {
 	return s.repo.ListClients(ctx)
+}
+
+// UpdatePrincipalStatus changes one principal status.
+func (s *Service) UpdatePrincipalStatus(ctx context.Context, in UpdatePrincipalStatusInput) (domain.Principal, error) {
+	var updated domain.Principal
+	err := s.repo.WithinTx(ctx, func(tx store.Repository) error {
+		principal, err := tx.GetPrincipal(ctx, strings.TrimSpace(in.PrincipalID))
+		if err != nil {
+			return err
+		}
+		if err := principal.UpdateStatus(in.Status, s.clock()); err != nil {
+			return err
+		}
+		if err := tx.UpdatePrincipal(ctx, principal); err != nil {
+			return err
+		}
+		_, err = s.appendAuditTx(ctx, tx, domain.AuditEvent{
+			ID:          s.idGen(),
+			Type:        domain.AuditEventPrincipalUpdated,
+			OccurredAt:  s.clock().UTC(),
+			PrincipalID: principal.ID,
+			Reason:      strings.TrimSpace(in.Reason),
+			Metadata: map[string]string{
+				"actor":  strings.TrimSpace(in.Actor),
+				"status": string(principal.Status),
+			},
+		})
+		updated = principal
+		return err
+	})
+	if err != nil {
+		return domain.Principal{}, err
+	}
+	return updated, nil
+}
+
+// UpdateClientStatus changes one client status.
+func (s *Service) UpdateClientStatus(ctx context.Context, in UpdateClientStatusInput) (domain.Client, error) {
+	var updated domain.Client
+	err := s.repo.WithinTx(ctx, func(tx store.Repository) error {
+		client, err := tx.GetClient(ctx, strings.TrimSpace(in.ClientID))
+		if err != nil {
+			return err
+		}
+		if err := client.UpdateStatus(in.Status, s.clock()); err != nil {
+			return err
+		}
+		if err := tx.UpdateClient(ctx, client); err != nil {
+			return err
+		}
+		_, err = s.appendAuditTx(ctx, tx, domain.AuditEvent{
+			ID:         s.idGen(),
+			Type:       domain.AuditEventClientUpdated,
+			OccurredAt: s.clock().UTC(),
+			ClientID:   client.ID,
+			Reason:     strings.TrimSpace(in.Reason),
+			Metadata: map[string]string{
+				"actor":  strings.TrimSpace(in.Actor),
+				"status": string(client.Status),
+			},
+		})
+		updated = client
+		return err
+	})
+	if err != nil {
+		return domain.Client{}, err
+	}
+	return updated, nil
 }
 
 // ReplaceRules validates and replaces the persisted rule set.
@@ -576,6 +660,46 @@ func (s *Service) ResolveGrant(ctx context.Context, in ResolveGrantInput) (domai
 			Metadata: map[string]string{
 				"grant_id": grant.ID,
 				"actor":    strings.TrimSpace(in.Actor),
+			},
+		}); err != nil {
+			return err
+		}
+		updated = grant
+		return nil
+	})
+	if err != nil {
+		return domain.Grant{}, err
+	}
+	return updated, nil
+}
+
+// CancelGrant cancels one pending grant.
+func (s *Service) CancelGrant(ctx context.Context, grantID, actor, note string) (domain.Grant, error) {
+	var updated domain.Grant
+	err := s.repo.WithinTx(ctx, func(tx store.Repository) error {
+		grant, err := tx.GetGrant(ctx, strings.TrimSpace(grantID))
+		if err != nil {
+			return err
+		}
+		if err := grant.Cancel(actor, note, s.clock()); err != nil {
+			return err
+		}
+		if err := tx.UpdateGrant(ctx, grant); err != nil {
+			return err
+		}
+		if _, err := s.appendAuditTx(ctx, tx, domain.AuditEvent{
+			ID:          s.idGen(),
+			Type:        domain.AuditEventGrantCanceled,
+			OccurredAt:  s.clock().UTC(),
+			PrincipalID: grant.PrincipalID,
+			ClientID:    grant.ClientID,
+			SessionID:   grant.SessionID,
+			Action:      grant.Action,
+			Resource:    grant.Resource,
+			Reason:      string(grant.State),
+			Metadata: map[string]string{
+				"grant_id": grant.ID,
+				"actor":    strings.TrimSpace(actor),
 			},
 		}); err != nil {
 			return err

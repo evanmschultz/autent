@@ -63,3 +63,17 @@ func NewClient(in ClientInput, now time.Time) (Client, error) {
 func (c Client) IsActive() bool {
 	return NormalizeStatus(c.Status) == StatusActive
 }
+
+// UpdateStatus changes the client status and refreshes the updated timestamp.
+func (c *Client) UpdateStatus(status Status, now time.Time) error {
+	if c == nil {
+		return ErrInvalidStatus
+	}
+	normalized := NormalizeStatus(status)
+	if !IsValidStatus(normalized) {
+		return ErrInvalidStatus
+	}
+	c.Status = normalized
+	c.UpdatedAt = now.UTC()
+	return nil
+}

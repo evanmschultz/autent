@@ -97,3 +97,17 @@ func NewPrincipal(in PrincipalInput, now time.Time) (Principal, error) {
 func (p Principal) IsActive() bool {
 	return NormalizeStatus(p.Status) == StatusActive
 }
+
+// UpdateStatus changes the principal status and refreshes the updated timestamp.
+func (p *Principal) UpdateStatus(status Status, now time.Time) error {
+	if p == nil {
+		return ErrInvalidStatus
+	}
+	normalized := NormalizeStatus(status)
+	if !IsValidStatus(normalized) {
+		return ErrInvalidStatus
+	}
+	p.Status = normalized
+	p.UpdatedAt = now.UTC()
+	return nil
+}
