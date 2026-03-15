@@ -7,41 +7,11 @@ verify-bootstrap:
   @test -f README.md
   @test -f PLAN.md
   @test -f Justfile
-  @test -f dprint.json
   @test -f .goreleaser.yml
   @test -f .github/workflows/ci.yml
   @test -f .github/workflows/release.yml
 
-md-fmt:
-  @if ! command -v dprint >/dev/null 2>&1; then \
-    echo "md-fmt failed: dprint is not installed"; \
-    echo "install: brew install dprint"; \
-    exit 1; \
-  else \
-    mkdir -p .cache/dprint; \
-    mkdir -p .cache/dprint/cache/plugins; \
-    if [ -d "$HOME/Library/Caches/dprint/cache/plugins" ]; then \
-      cp -R "$HOME/Library/Caches/dprint/cache/plugins/." .cache/dprint/cache/plugins/ 2>/dev/null || true; \
-    fi; \
-    DPRINT_CACHE_DIR="$(pwd)/.cache/dprint" dprint fmt; \
-  fi
-
-[private]
-md-check:
-  @if ! command -v dprint >/dev/null 2>&1; then \
-    echo "md-check failed: dprint is not installed"; \
-    echo "install: brew install dprint"; \
-    exit 1; \
-  else \
-    mkdir -p .cache/dprint; \
-    mkdir -p .cache/dprint/cache/plugins; \
-    if [ -d "$HOME/Library/Caches/dprint/cache/plugins" ]; then \
-      cp -R "$HOME/Library/Caches/dprint/cache/plugins/." .cache/dprint/cache/plugins/ 2>/dev/null || true; \
-    fi; \
-    DPRINT_CACHE_DIR="$(pwd)/.cache/dprint" dprint check; \
-  fi
-
-fmt: md-fmt
+fmt:
   @if [ ! -f go.mod ]; then \
     echo "skip fmt: go.mod not initialized yet"; \
   elif ! command -v gofumpt >/dev/null 2>&1; then \
@@ -171,6 +141,6 @@ release-check:
     goreleaser check; \
   fi
 
-check: verify-bootstrap md-check fmt-check lint test build
+check: verify-bootstrap fmt-check lint test build
 
-ci: verify-bootstrap md-check fmt-check lint test coverage build
+ci: verify-bootstrap fmt-check lint test coverage build

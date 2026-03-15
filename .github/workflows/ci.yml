@@ -27,9 +27,7 @@ jobs:
         run: |
           go install mvdan.cc/gofumpt@v0.9.2
           go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8
-          curl -fsSL https://dprint.dev/install.sh | sh -s -- v0.49.1
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
-          echo "$HOME/.dprint/bin" >> "$GITHUB_PATH"
       - name: Run smoke gate
         shell: bash
         run: just check
@@ -49,9 +47,7 @@ jobs:
         run: |
           go install mvdan.cc/gofumpt@v0.9.2
           go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8
-          curl -fsSL https://dprint.dev/install.sh | sh -s -- v0.49.1
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
-          echo "$HOME/.dprint/bin" >> "$GITHUB_PATH"
       - name: Run macOS compatibility gate
         shell: bash
         run: just check
@@ -74,9 +70,7 @@ jobs:
         run: |
           go install mvdan.cc/gofumpt@v0.9.2
           go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8
-          curl -fsSL https://dprint.dev/install.sh | sh -s -- v0.49.1
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
-          echo "$HOME/.dprint/bin" >> "$GITHUB_PATH"
       - name: Run canonical CI gate
         shell: bash
         run: just ci
