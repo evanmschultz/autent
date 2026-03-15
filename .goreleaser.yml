@@ -1,0 +1,25 @@
+version: 2
+
+project_name: authent
+
+builds:
+  - id: authent-example
+    main: ./cmd/authent-example
+    binary: authent-example
+    env:
+      - CGO_ENABLED=0
+
+archives:
+  - id: default
+    ids:
+      - authent-example
+
+checksum:
+  name_template: checksums.txt
+
+snapshot:
+  version_template: "{{ .Version }}-next"
+
+changelog:
+  use: github-native
+

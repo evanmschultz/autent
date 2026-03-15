@@ -1,0 +1,46 @@
+# Go build, test, and coverage artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.a
+*.o
+*.obj
+*.test
+*.coverprofile
+*.cov
+coverage.out
+cover.out
+*.prof
+*.pprof
+cpu.out
+mem.out
+
+bin/
+build/
+dist/
+coverage/
+.artifacts/
+
+# Logs and temporary files
+*.log
+*.pid
+*.tmp
+*.temp
+*.bak
+*.orig
+
+.cache/
+.tmp/
+tmp/
+temp/
+
+# Local state and tooling
+.codex/
+.claude/
+.cursor/
+.idea/
+.vscode/
+.DS_Store
+

@@ -1,0 +1,44 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  goreleaser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: taiki-e/install-action@just
+      - name: Install repo tooling
+        shell: bash
+        run: |
+          go install mvdan.cc/gofumpt@latest
+          go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+          go install github.com/goreleaser/goreleaser/v2@latest
+          curl -fsSL https://dprint.dev/install.sh | sh -s -- v0.49.1
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          echo "$HOME/.dprint/bin" >> "$GITHUB_PATH"
+      - name: Run canonical CI gate
+        shell: bash
+        run: just ci
+      - name: Release with GoReleaser
+        shell: bash
+        run: goreleaser release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
