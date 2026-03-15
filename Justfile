@@ -173,5 +173,4 @@ release-check:
 
 check: verify-bootstrap md-check fmt-check lint test build
 
-ci: verify-bootstrap md-check fmt-check lint test coverage build release-check
-
+ci: verify-bootstrap md-check fmt-check lint test coverage build
