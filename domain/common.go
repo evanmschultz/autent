@@ -4,7 +4,6 @@ import (
 	"maps"
 	"slices"
 	"strings"
-	"time"
 )
 
 // Status identifies whether a principal or client is active.
@@ -38,13 +37,4 @@ func copyMap(in map[string]string) map[string]string {
 	out := make(map[string]string, len(in))
 	maps.Copy(out, in)
 	return out
-}
-
-// copyTimePtr copies a time pointer.
-func copyTimePtr(ts *time.Time) *time.Time {
-	if ts == nil {
-		return nil
-	}
-	out := ts.UTC()
-	return &out
 }

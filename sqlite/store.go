@@ -283,7 +283,9 @@ func listPrincipals(ctx context.Context, db execQuerier) ([]domain.Principal, er
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	var out []domain.Principal
 	for rows.Next() {
@@ -333,7 +335,9 @@ func listClients(ctx context.Context, db execQuerier) ([]domain.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	var out []domain.Client
 	for rows.Next() {
@@ -402,7 +406,9 @@ func listSessions(ctx context.Context, db execQuerier) ([]domain.Session, error)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	var out []domain.Session
 	for rows.Next() {
@@ -440,7 +446,9 @@ func listRules(ctx context.Context, db execQuerier) ([]domain.Rule, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	var out []domain.Rule
 	for rows.Next() {
@@ -545,7 +553,9 @@ func listGrants(ctx context.Context, db execQuerier) ([]domain.Grant, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	var out []domain.Grant
 	for rows.Next() {
@@ -613,7 +623,9 @@ func listAuditEvents(ctx context.Context, db execQuerier, filter domain.AuditFil
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	var out []domain.AuditEvent
 	for rows.Next() {

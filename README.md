@@ -80,24 +80,6 @@ just ci
 
 The example binary at `cmd/authent-example` is the human-test harness for the library.
 
-## Human Test CLI
-
-The example CLI uses a local SQLite database and exposes the core flows directly:
-
-```bash
-go run ./cmd/authent-example help
-go run ./cmd/authent-example principal create --db ./.tmp/demo.db --id user-1 --type user --name "User One"
-go run ./cmd/authent-example client create --db ./.tmp/demo.db --id cli-1 --type cli --name "CLI"
-go run ./cmd/authent-example policy load-demo --db ./.tmp/demo.db
-go run ./cmd/authent-example session issue --db ./.tmp/demo.db --principal user-1 --client cli-1
-go run ./cmd/authent-example authz check --db ./.tmp/demo.db --session <session-id> --secret <session-secret> --action read --namespace project:demo --resource-type task --resource-id task-1
-go run ./cmd/authent-example grant request --db ./.tmp/demo.db --session <session-id> --secret <session-secret> --action mutate --namespace project:demo --resource-type task --resource-id task-1 --context scope=current --reason "need one mutation"
-go run ./cmd/authent-example grant approve --db ./.tmp/demo.db --grant-id <grant-id> --actor approver-1 --note approved --usage-limit 1
-go run ./cmd/authent-example audit list --db ./.tmp/demo.db --session <session-id>
-```
-
-The built-in demo policy allows `read` on `project:demo/task:task-1` and requires an explicit one-time grant for `mutate` on the same resource when `scope=current`.
-
 ## Human Test
 
 Use one local SQLite file for the flow:
@@ -147,6 +129,8 @@ Expected behavior:
 - `mutate` returns `grant_required` until approved
 - one approved grant allows one retry, then requires a new grant
 - `session revoke` makes later checks fail with a session-based denial
+
+The built-in demo policy allows `read` on `project:demo/task:task-1` and requires an explicit one-time grant for `mutate` on the same resource when `scope=current`.
 
 ## Repository Bootstrap
 

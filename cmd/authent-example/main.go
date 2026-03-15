@@ -159,7 +159,7 @@ func runPolicy(args []string, out io.Writer) error {
 // runSession handles `session issue` and `session revoke`.
 func runSession(args []string, out io.Writer) error {
 	if len(args) == 0 {
-		return errors.New("usage: session issue|revoke ...")
+		return errors.New("usage: session issue|revoke")
 	}
 	switch args[0] {
 	case "issue":
@@ -214,7 +214,7 @@ func runSession(args []string, out io.Writer) error {
 		}
 		return writeJSON(out, session)
 	default:
-		return errors.New("usage: session issue|revoke ...")
+		return errors.New("usage: session issue|revoke")
 	}
 }
 
@@ -266,7 +266,7 @@ func runAuthz(args []string, out io.Writer) error {
 // runGrant handles `grant request` and `grant approve`.
 func runGrant(args []string, out io.Writer) error {
 	if len(args) == 0 {
-		return errors.New("usage: grant request|approve ...")
+		return errors.New("usage: grant request|approve")
 	}
 	switch args[0] {
 	case "request":
@@ -341,7 +341,7 @@ func runGrant(args []string, out io.Writer) error {
 		}
 		return writeJSON(out, grant)
 	default:
-		return errors.New("usage: grant request|approve ...")
+		return errors.New("usage: grant request|approve")
 	}
 }
 
