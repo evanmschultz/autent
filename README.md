@@ -98,6 +98,23 @@ Recommended defaults:
 
 For subagent workflows, the recommended pattern is to issue a short-lived delegated session, let the subagent use it for one bounded task, and have the embedding app call `RevokeSession` when the subagent reports completion. Session expiry remains the fallback if explicit revoke never happens.
 
+## Confidence Levels
+
+`autent` uses three different confidence levels when talking about platform support:
+
+- build confidence: GoReleaser cross-builds the example CLI release artifacts for macOS, Linux, and Windows
+- CI confidence: `just check` runs in GitHub Actions on macOS, Linux, and Windows runners, while the heavier `just ci` gate remains Ubuntu-only
+- human runtime confidence: the documented example CLI flow has been exercised by hand on macOS
+
+That means the project currently has:
+
+- cross-built example CLI artifacts for the major desktop and server targets
+- automated `just check` coverage on GitHub-hosted macOS, Linux, and Windows runners
+- human-verified runtime behavior for the documented CLI flow on macOS
+
+Be precise when describing support.
+Do not claim native human verification on Windows or Linux unless that workflow has actually been exercised there.
+
 ## Versioning And Releases
 
 `autent` is pre-`v1`.
