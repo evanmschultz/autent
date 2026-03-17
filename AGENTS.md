@@ -153,6 +153,10 @@ Before handoff, summarize:
 - Worktrees are supported but not required
 - Run commands from the exact repository path requested by the user
 - Do not push to remotes unless the user explicitly asks
+- Once branch protection is enabled, do not push changes directly to `main`; use branches and pull requests unless the user explicitly asks for an allowed maintainer exception such as tagging a release
+- Treat pull requests as the default path for normal code and documentation changes even before protections are fully enforced; direct maintainer pushes should be limited to exceptional repository operations such as release-tag management
+- Prefer `gh` and `gh api` for repository governance, PR flow, and release management when CLI control is needed
+- Treat release, CI, and governance files as sensitive maintainer surfaces; explain user-visible impact when changing them
 - The `.tmp/` directory is local research scratch space. Do not edit cloned sibling repos under `.tmp/` unless the user explicitly asks for changes there
 
 ## 8) Current Direction
@@ -171,3 +175,9 @@ Ready-for-consumers expectations:
 - keep `autent` ready for `blick`, `tillsyn`, and similar Go apps
 - keep docs complete enough that a new adopter can understand trust model, storage options, and human test flow
 - keep error behavior explicit enough that consumers can distinguish decisions from operational failures
+
+Release and governance expectations:
+
+- keep release flow based on SemVer tags
+- treat `v0.x.y` as pre-`v1` releases where API refinement is still allowed
+- keep contributor docs, CI, and release docs aligned when versioning or workflow changes

@@ -140,9 +140,13 @@ release-check:
     echo "install: brew install goreleaser"; \
     exit 1; \
   else \
+    trap 'rm -rf dist' EXIT; \
     goreleaser check; \
+    goreleaser build --snapshot --clean --single-target; \
+    rm -rf dist; \
+    trap - EXIT; \
   fi
 
 check: verify-bootstrap fmt-check lint test build
 
-ci: verify-bootstrap fmt-check lint test coverage build
+ci: verify-bootstrap fmt-check lint test coverage build release-check

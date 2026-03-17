@@ -29,12 +29,13 @@ jobs:
         run: |
           go install mvdan.cc/gofumpt@v0.9.2
           go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8
+          go install github.com/goreleaser/goreleaser/v2@v2.14.3
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Run canonical CI gate
         shell: bash
         run: just ci
       - name: Release with GoReleaser
-        uses: goreleaser/goreleaser-action@v6
+        uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser
           version: v2.14.3

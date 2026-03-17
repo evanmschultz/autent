@@ -98,6 +98,41 @@ Recommended defaults:
 
 For subagent workflows, the recommended pattern is to issue a short-lived delegated session, let the subagent use it for one bounded task, and have the embedding app call `RevokeSession` when the subagent reports completion. Session expiry remains the fallback if explicit revoke never happens.
 
+## Versioning And Releases
+
+`autent` is pre-`v1`.
+
+The first public release line should begin at `v0.1.0`.
+That means:
+
+- `v0.1.x` for bug fixes and polish
+- `v0.2.0`, `v0.3.0`, and so on for new features or pre-`v1` breaking changes
+- `v1.0.0` only once the public API is intentionally stable
+
+Release flow:
+
+1. land release-ready work on `main`
+2. create an annotated SemVer tag
+3. push the tag
+4. let GitHub Actions and GoReleaser publish the release assets
+
+Example:
+
+```bash
+git tag -a v0.1.0 -m "v0.1.0"
+git push origin v0.1.0
+```
+
+Because `autent` is a normal public Go module, tagged releases become installable with the standard Go toolchain.
+
+```bash
+go get github.com/evanschultz/autent@v0.1.0
+```
+
+No separate package registry setup is required.
+The Go module release surface is the SemVer tag itself; GoReleaser additionally publishes GitHub release assets such as the example CLI binary for people who want them.
+`pkg.go.dev` will index tagged versions after the module is fetched or discovered publicly, and it will render the root-package docs, exported facade types, and subpackage docs from this repository's public Go API.
+
 ## Local Commands
 
 ```bash
@@ -242,6 +277,29 @@ Near-term follow-ups after the MVP:
 
 These are refinement items, not missing core features.
 
+## Contribution And Governance
+
+`autent` uses a PR-first workflow.
+Contributors should use branches and pull requests for normal changes.
+Once branch protection is enabled for `main`:
+
+- contributors should work on branches, not directly on `main`
+- pull requests should be created and monitored with `gh`
+- `main` should require the passing CI gates before merge
+
+The solo maintainer may still use direct maintainer actions for exceptional repository operations such as pushing release tags, but normal code and doc changes should still go through PRs.
+
+Recommended maintainer flow:
+
+```bash
+git switch -c your-branch
+gh pr create --fill --base main
+gh pr checks --watch
+gh pr merge --squash --delete-branch
+```
+
+`gh-dash` is a good optional companion for reviewing PRs and checks, but repo governance and release configuration should still be managed primarily with `gh` and `gh api`.
+
 ## Documentation
 
 Detailed docs live under [`docs/`](./docs):
@@ -259,6 +317,8 @@ Contributor and process guidance:
 
 - [CONTRIBUTING.md](./CONTRIBUTING.md)
 - [AGENTS.md](./AGENTS.md)
+- [SECURITY.md](./SECURITY.md)
+- [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md)
 
 ## License
 

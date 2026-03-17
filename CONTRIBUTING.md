@@ -37,6 +37,14 @@ just check
 just ci
 ```
 
+`just ci` includes release configuration validation.
+Install GoReleaser locally if you do not already have it.
+On macOS with Homebrew, for example:
+
+```bash
+brew install goreleaser
+```
+
 For faster loops, prefer package-scoped tests:
 
 ```bash
@@ -75,6 +83,47 @@ Before asking for review:
 
 The release workflow exists to validate and publish tagged releases.
 Do not add unrelated packaging or deployment behavior into the core library CI path.
+
+`autent` is currently pre-`v1`.
+Use SemVer tags beginning with `v0.1.0`.
+
+Normal release flow:
+
+1. merge release-ready work to `main`
+2. create an annotated tag locally
+3. push the tag
+4. let GitHub Actions publish the release through GoReleaser
+
+Example:
+
+```bash
+git tag -a v0.1.0 -m "v0.1.0"
+git push origin v0.1.0
+```
+
+## Pull Request Workflow
+
+`main` should be treated as PR-only once repository protections are enabled.
+
+Contributor flow:
+
+1. create a branch from `main`
+2. make the change
+3. run `just check`
+4. run `just ci` when practical
+5. open a pull request with `gh pr create`
+
+Example:
+
+```bash
+git switch -c your-branch
+gh pr create --fill --base main
+gh pr checks --watch
+```
+
+Because the repository currently has a single maintainer, the branch protection model should require pull requests and passing checks but not required approvals yet.
+That avoids deadlocking solo-maintainer merges while still preventing casual direct pushes to `main`.
+Contributors should still assume PRs are the normal path for all changes.
 
 ## Scope Discipline
 

@@ -1,0 +1,12 @@
+* @evanschultz
+
+/.github/ @evanschultz
+/README.md @evanschultz
+/CONTRIBUTING.md @evanschultz
+/AGENTS.md @evanschultz
+/SECURITY.md @evanschultz
+/CODE_OF_CONDUCT.md @evanschultz
+/Justfile @evanschultz
+/.goreleaser.yml @evanschultz
+/docs/ @evanschultz
+/cmd/ @evanschultz
