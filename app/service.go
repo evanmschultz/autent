@@ -3,6 +3,7 @@ package app
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -24,23 +25,37 @@ type SessionSecretManager interface {
 
 // Config provides the dependencies required by the auth service.
 type Config struct {
-	Repository  store.Repository
-	Secrets     SessionSecretManager
+	Repository store.Repository
+	Secrets    SessionSecretManager
+	// IDGenerator is optional. When nil, the service uses an internal opaque ID generator.
 	IDGenerator func() string
 	Clock       func() time.Time
 	SessionTTL  time.Duration
 	GrantTTL    time.Duration
 }
 
-// IssuedSession bundles a persisted session with the returned opaque secret.
+// SessionView exposes caller-safe session metadata without verifier-side secret material.
+type SessionView struct {
+	ID               string
+	PrincipalID      string
+	ClientID         string
+	IssuedAt         time.Time
+	ExpiresAt        time.Time
+	LastSeenAt       time.Time
+	RevokedAt        *time.Time
+	RevocationReason string
+	Metadata         map[string]string
+}
+
+// IssuedSession bundles a persisted session view with the returned opaque secret.
 type IssuedSession struct {
-	Session domain.Session
+	Session SessionView
 	Secret  string
 }
 
 // ValidatedSession bundles a valid session with its principal and client.
 type ValidatedSession struct {
-	Session   domain.Session
+	Session   SessionView
 	Principal domain.Principal
 	Client    domain.Client
 }
@@ -108,6 +123,30 @@ type Service struct {
 	grantTTL   time.Duration
 }
 
+// defaultIDGenerator creates opaque IDs for library-managed records when callers do not supply a generator.
+func defaultIDGenerator() string {
+	buf := make([]byte, 16)
+	if _, err := rand.Read(buf); err != nil {
+		return fmt.Sprintf("autent-%d", time.Now().UnixNano())
+	}
+	return "autent-" + hex.EncodeToString(buf)
+}
+
+// newSessionView removes verifier-side material from one stored session.
+func newSessionView(session domain.StoredSession) SessionView {
+	return SessionView{
+		ID:               session.ID,
+		PrincipalID:      session.PrincipalID,
+		ClientID:         session.ClientID,
+		IssuedAt:         session.IssuedAt,
+		ExpiresAt:        session.ExpiresAt,
+		LastSeenAt:       session.LastSeenAt,
+		RevokedAt:        session.RevokedAt,
+		RevocationReason: session.RevocationReason,
+		Metadata:         copyContext(session.Metadata),
+	}
+}
+
 // NewService validates dependencies and constructs the app service.
 func NewService(cfg Config) (*Service, error) {
 	if cfg.Repository == nil {
@@ -117,7 +156,7 @@ func NewService(cfg Config) (*Service, error) {
 		return nil, fmt.Errorf("secrets: %w", domain.ErrInvalidConfig)
 	}
 	if cfg.IDGenerator == nil {
-		return nil, fmt.Errorf("id generator: %w", domain.ErrInvalidConfig)
+		cfg.IDGenerator = defaultIDGenerator
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = time.Now
@@ -357,7 +396,7 @@ func (s *Service) IssueSession(ctx context.Context, in IssueSessionInput) (Issue
 	if ttl <= 0 {
 		ttl = s.sessionTTL
 	}
-	session, err := domain.NewSession(domain.SessionInput{
+	session, err := domain.NewStoredSession(domain.StoredSessionInput{
 		ID:          s.idGen(),
 		PrincipalID: principal.ID,
 		ClientID:    client.ID,
@@ -386,7 +425,7 @@ func (s *Service) IssueSession(ctx context.Context, in IssueSessionInput) (Issue
 	if err != nil {
 		return IssuedSession{}, err
 	}
-	return IssuedSession{Session: session, Secret: secret}, nil
+	return IssuedSession{Session: newSessionView(session), Secret: secret}, nil
 }
 
 // ValidateSession verifies a presented session id and secret.
@@ -434,7 +473,7 @@ func (s *Service) ValidateSession(ctx context.Context, sessionID, secret string)
 			return err
 		}
 		validated = ValidatedSession{
-			Session:   session,
+			Session:   newSessionView(session),
 			Principal: principal,
 			Client:    client,
 		}
@@ -447,8 +486,8 @@ func (s *Service) ValidateSession(ctx context.Context, sessionID, secret string)
 }
 
 // RevokeSession revokes a persisted session.
-func (s *Service) RevokeSession(ctx context.Context, sessionID, reason string) (domain.Session, error) {
-	var session domain.Session
+func (s *Service) RevokeSession(ctx context.Context, sessionID, reason string) (SessionView, error) {
+	var session domain.StoredSession
 	err := s.repo.WithinTx(ctx, func(tx store.Repository) error {
 		loaded, err := tx.GetSession(ctx, strings.TrimSpace(sessionID))
 		if err != nil {
@@ -476,9 +515,9 @@ func (s *Service) RevokeSession(ctx context.Context, sessionID, reason string) (
 		return nil
 	})
 	if err != nil {
-		return domain.Session{}, err
+		return SessionView{}, err
 	}
-	return session, nil
+	return newSessionView(session), nil
 }
 
 // Authorize validates the session and evaluates a request against policy and grants.

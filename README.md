@@ -59,11 +59,14 @@ Current packages:
 - `github.com/evanmschultz/autent/inmem`
 - `github.com/evanmschultz/autent/sqlite`
 
+For embedders, the root `autent` package re-exports the primary service API so callers can start with `autent.NewService(...)` and then choose adapters explicitly.
+
 Layering:
 
 - `domain`: pure types, invariants, matching logic, typed errors
 - `app`: use-cases and orchestration over ports
-- `store` / `token` / `audit`: adapter contracts
+- `store` / `token`: primary adapter contracts
+- `audit`: reserved namespace for audit-facing docs and future sink helpers
 - `inmem` / `sqlite`: concrete adapters
 
 ## Current MVP Scope
@@ -73,10 +76,12 @@ Implemented:
 - principal and client registration
 - principal and client enable or disable flows
 - opaque session issue, validate, and revoke
+- caller-safe session views at the service boundary
 - rule-based authorization with explicit deny precedence
 - explicit grant request, approve, deny, and cancel flows
 - append-only audit events
 - in-memory and SQLite adapters
+- versioned SQLite schema management with prefixed shared-DB support
 - example CLI for human testing
 
 Recommended defaults:
@@ -109,16 +114,18 @@ repo, err := sqlite.Open("autent.db")
 ```
 
 ```go
-repo, err := sqlite.OpenWithOptions("app.db", sqlite.Options{
+repo, err := sqlite.OpenDB(existingDB, sqlite.Options{
     TablePrefix: "autent_",
 })
 ```
 
 ```go
-repo, err := sqlite.OpenDB(existingDB, sqlite.Options{
+repo, err := sqlite.OpenWithOptions("app.db", sqlite.Options{
     TablePrefix: "autent_",
 })
 ```
+
+The SQLite adapter records a schema version and applies numbered migrations internally.
 
 ## Human Testing
 
@@ -136,17 +143,29 @@ go run ./cmd/autent-example session issue --db "$DB" --principal user-1 --client
 Take the returned `session_id` and `session_secret`, then:
 
 ```bash
+SESSION_ID='paste-session-id-here'
+SESSION_SECRET='paste-session-secret-here'
+
 go run ./cmd/autent-example authz check --db "$DB" \
-  --session <session_id> \
-  --secret <session_secret> \
+  --session "$SESSION_ID" \
+  --secret "$SESSION_SECRET" \
   --action read \
   --namespace project:demo \
   --resource-type task \
   --resource-id task-1
 
+go run ./cmd/autent-example authz check --db "$DB" \
+  --session "$SESSION_ID" \
+  --secret "$SESSION_SECRET" \
+  --action mutate \
+  --namespace project:demo \
+  --resource-type task \
+  --resource-id task-1 \
+  --context scope=current
+
 go run ./cmd/autent-example grant request --db "$DB" \
-  --session <session_id> \
-  --secret <session_secret> \
+  --session "$SESSION_ID" \
+  --secret "$SESSION_SECRET" \
   --action mutate \
   --namespace project:demo \
   --resource-type task \
@@ -154,13 +173,45 @@ go run ./cmd/autent-example grant request --db "$DB" \
   --context scope=current \
   --reason "need one mutation"
 
+GRANT_ID='paste-grant-id-here'
+
 go run ./cmd/autent-example grant approve --db "$DB" \
-  --grant-id <grant_id> \
+  --grant-id "$GRANT_ID" \
   --actor approver-1 \
   --note approved \
   --usage-limit 1
 
+go run ./cmd/autent-example authz check --db "$DB" \
+  --session "$SESSION_ID" \
+  --secret "$SESSION_SECRET" \
+  --action mutate \
+  --namespace project:demo \
+  --resource-type task \
+  --resource-id task-1 \
+  --context scope=current
+
+go run ./cmd/autent-example authz check --db "$DB" \
+  --session "$SESSION_ID" \
+  --secret "$SESSION_SECRET" \
+  --action mutate \
+  --namespace project:demo \
+  --resource-type task \
+  --resource-id task-1 \
+  --context scope=current
+
 go run ./cmd/autent-example audit list --db "$DB"
+
+go run ./cmd/autent-example session revoke --db "$DB" \
+  --session "$SESSION_ID" \
+  --reason done
+
+go run ./cmd/autent-example authz check --db "$DB" \
+  --session "$SESSION_ID" \
+  --secret "$SESSION_SECRET" \
+  --action read \
+  --namespace project:demo \
+  --resource-type task \
+  --resource-id task-1
 ```
 
 Expected behavior:
@@ -168,7 +219,7 @@ Expected behavior:
 - `read` returns `allow`
 - `mutate` returns `grant_required` until approved
 - one approved grant allows one retry, then requires a new grant
-- `session revoke` makes later checks fail with a session-based invalid result
+- the post-revoke `authz check` returns `invalid`
 
 ## Documentation
 
@@ -180,6 +231,7 @@ Detailed docs live under [`docs/`](./docs):
 - [Human Testing](./docs/04-human-testing.md)
 - [blick Integration Notes](./docs/05-blick-integration.md)
 - [tillsyn Integration Notes](./docs/06-tillsyn-integration.md)
+- [MVP Completion Notes](./docs/07-mvp-completion.md)
 
 Contributor and process guidance:
 

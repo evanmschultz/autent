@@ -5,8 +5,8 @@ import (
 	"time"
 )
 
-// SessionInput carries fields used to issue a session.
-type SessionInput struct {
+// StoredSessionInput carries fields used to construct one stored session record.
+type StoredSessionInput struct {
 	ID          string
 	PrincipalID string
 	ClientID    string
@@ -15,12 +15,11 @@ type SessionInput struct {
 	Metadata    map[string]string
 }
 
-// Session stores an authenticated runtime binding between a principal and a client.
+// Session stores caller-safe session metadata for one authenticated principal-client binding.
 type Session struct {
 	ID               string
 	PrincipalID      string
 	ClientID         string
-	SecretHash       []byte
 	IssuedAt         time.Time
 	ExpiresAt        time.Time
 	LastSeenAt       time.Time
@@ -29,39 +28,62 @@ type Session struct {
 	Metadata         map[string]string
 }
 
-// NewSession validates and constructs an issued session.
-func NewSession(in SessionInput, now time.Time) (Session, error) {
+// StoredSession stores verifier-side session state, including the hashed session secret.
+type StoredSession struct {
+	Session
+	SecretHash []byte
+}
+
+// View returns the caller-safe session metadata for one stored session record.
+func (s StoredSession) View() Session {
+	return Session{
+		ID:               s.ID,
+		PrincipalID:      s.PrincipalID,
+		ClientID:         s.ClientID,
+		IssuedAt:         s.IssuedAt,
+		ExpiresAt:        s.ExpiresAt,
+		LastSeenAt:       s.LastSeenAt,
+		RevokedAt:        copyTimePtr(s.RevokedAt),
+		RevocationReason: s.RevocationReason,
+		Metadata:         copyMap(s.Metadata),
+	}
+}
+
+// NewStoredSession validates and constructs one stored session record.
+func NewStoredSession(in StoredSessionInput, now time.Time) (StoredSession, error) {
 	id := strings.TrimSpace(in.ID)
 	if id == "" {
-		return Session{}, ErrInvalidID
+		return StoredSession{}, ErrInvalidID
 	}
 	principalID := strings.TrimSpace(in.PrincipalID)
 	if principalID == "" {
-		return Session{}, ErrInvalidID
+		return StoredSession{}, ErrInvalidID
 	}
 	clientID := strings.TrimSpace(in.ClientID)
 	if clientID == "" {
-		return Session{}, ErrInvalidID
+		return StoredSession{}, ErrInvalidID
 	}
 	if len(in.SecretHash) == 0 {
-		return Session{}, ErrInvalidSessionSecretHash
+		return StoredSession{}, ErrInvalidSessionSecretHash
 	}
 	if in.ExpiresAt.IsZero() || !in.ExpiresAt.UTC().After(now.UTC()) {
-		return Session{}, ErrInvalidSessionExpiry
+		return StoredSession{}, ErrInvalidSessionExpiry
 	}
 
 	ts := now.UTC()
 	secretHash := make([]byte, len(in.SecretHash))
 	copy(secretHash, in.SecretHash)
-	return Session{
-		ID:          id,
-		PrincipalID: principalID,
-		ClientID:    clientID,
-		SecretHash:  secretHash,
-		IssuedAt:    ts,
-		ExpiresAt:   in.ExpiresAt.UTC(),
-		LastSeenAt:  ts,
-		Metadata:    copyMap(in.Metadata),
+	return StoredSession{
+		Session: Session{
+			ID:          id,
+			PrincipalID: principalID,
+			ClientID:    clientID,
+			IssuedAt:    ts,
+			ExpiresAt:   in.ExpiresAt.UTC(),
+			LastSeenAt:  ts,
+			Metadata:    copyMap(in.Metadata),
+		},
+		SecretHash: secretHash,
 	}, nil
 }
 

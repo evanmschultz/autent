@@ -637,7 +637,7 @@ func randomID() string {
 }
 
 // redactSession returns a session view safe for operator-facing output.
-func redactSession(session domain.Session) sessionView {
+func redactSession(session app.SessionView) sessionView {
 	return sessionView{
 		ID:               session.ID,
 		PrincipalID:      session.PrincipalID,

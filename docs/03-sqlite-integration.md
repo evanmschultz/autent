@@ -19,6 +19,7 @@ The core library needs persistence semantics for:
 - local-first deployment
 - no extra service process
 - easy embedding into Go projects
+- one built-in schema version table with numbered migrations
 
 ## Two Integration Modes
 
@@ -50,7 +51,7 @@ Requirements for this mode:
 
 - caller-supplied database handle support
 - clear table naming or prefixing
-- migration discipline
+- versioned migration discipline
 - validated table prefixes so SQL identifiers stay predictable
 
 This mode is worth supporting because `autent` is meant to feel plugin-like for Go projects.
@@ -63,6 +64,7 @@ The most practical shape is:
 - keep `sqlite` optional
 - make dedicated auth DB the default documented path
 - support shared-DB embedding as an advanced integration mode
+- keep migrations explicit so future schema upgrades stay predictable
 
 ## Code Examples
 
@@ -70,18 +72,6 @@ Dedicated database file:
 
 ```go
 repo, err := sqlite.Open("autent.db")
-if err != nil {
-    return err
-}
-defer repo.Close()
-```
-
-Shared database file with prefixed tables:
-
-```go
-repo, err := sqlite.OpenWithOptions("app.db", sqlite.Options{
-    TablePrefix: "autent_",
-})
 if err != nil {
     return err
 }
@@ -97,6 +87,18 @@ repo, err := sqlite.OpenDB(db, sqlite.Options{
 if err != nil {
     return err
 }
+```
+
+Separate SQLite file with prefixed tables:
+
+```go
+repo, err := sqlite.OpenWithOptions("app.db", sqlite.Options{
+    TablePrefix: "autent_",
+})
+if err != nil {
+    return err
+}
+defer repo.Close()
 ```
 
 ## What Not To Do

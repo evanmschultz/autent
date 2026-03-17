@@ -3,6 +3,7 @@ package domain
 import (
 	"slices"
 	"strings"
+	"time"
 )
 
 // normalizeStringSlice trims values, removes empties, and de-duplicates while preserving sort order.
@@ -25,4 +26,13 @@ func normalizeStringSlice(values []string) []string {
 	}
 	slices.Sort(out)
 	return out
+}
+
+// copyTimePtr returns one copied UTC timestamp pointer.
+func copyTimePtr(ts *time.Time) *time.Time {
+	if ts == nil {
+		return nil
+	}
+	out := ts.UTC()
+	return &out
 }

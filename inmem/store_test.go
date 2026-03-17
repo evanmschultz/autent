@@ -118,7 +118,7 @@ func TestStoreRepositoryFlow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewClient() error = %v", err)
 	}
-	session, err := domain.NewSession(domain.SessionInput{
+	session, err := domain.NewStoredSession(domain.StoredSessionInput{
 		ID:          "session-1",
 		PrincipalID: principal.ID,
 		ClientID:    client.ID,
@@ -126,7 +126,7 @@ func TestStoreRepositoryFlow(t *testing.T) {
 		ExpiresAt:   now.Add(time.Hour),
 	}, now)
 	if err != nil {
-		t.Fatalf("NewSession() error = %v", err)
+		t.Fatalf("NewStoredSession() error = %v", err)
 	}
 	grant, err := domain.NewGrant(domain.GrantInput{
 		ID:          "grant-1",
@@ -270,7 +270,7 @@ func TestStoreWithinTxCRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewClient() error = %v", err)
 	}
-	session, err := domain.NewSession(domain.SessionInput{
+	session, err := domain.NewStoredSession(domain.StoredSessionInput{
 		ID:          "session-1",
 		PrincipalID: principal.ID,
 		ClientID:    client.ID,
@@ -278,7 +278,7 @@ func TestStoreWithinTxCRUD(t *testing.T) {
 		ExpiresAt:   now.Add(time.Hour),
 	}, now)
 	if err != nil {
-		t.Fatalf("NewSession() error = %v", err)
+		t.Fatalf("NewStoredSession() error = %v", err)
 	}
 	grant, err := domain.NewGrant(domain.GrantInput{
 		ID:          "grant-1",
@@ -367,7 +367,7 @@ func TestStoreSessionGrantAndAuditFlows(t *testing.T) {
 	repo := NewStore()
 	now := time.Date(2026, time.March, 14, 12, 0, 0, 0, time.UTC)
 
-	session, err := domain.NewSession(domain.SessionInput{
+	session, err := domain.NewStoredSession(domain.StoredSessionInput{
 		ID:          "session-1",
 		PrincipalID: "principal-1",
 		ClientID:    "client-1",
@@ -375,7 +375,7 @@ func TestStoreSessionGrantAndAuditFlows(t *testing.T) {
 		ExpiresAt:   now.Add(time.Hour),
 	}, now)
 	if err != nil {
-		t.Fatalf("NewSession() error = %v", err)
+		t.Fatalf("NewStoredSession() error = %v", err)
 	}
 	if err := repo.CreateSession(context.Background(), session); err != nil {
 		t.Fatalf("CreateSession() error = %v", err)
@@ -504,7 +504,7 @@ func TestStoreTransactionalPorts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewClient() error = %v", err)
 	}
-	session, err := domain.NewSession(domain.SessionInput{
+	session, err := domain.NewStoredSession(domain.StoredSessionInput{
 		ID:          "session-1",
 		PrincipalID: principal.ID,
 		ClientID:    client.ID,
@@ -512,7 +512,7 @@ func TestStoreTransactionalPorts(t *testing.T) {
 		ExpiresAt:   now.Add(time.Hour),
 	}, now)
 	if err != nil {
-		t.Fatalf("NewSession() error = %v", err)
+		t.Fatalf("NewStoredSession() error = %v", err)
 	}
 	rule, err := domain.ValidateAndNormalizeRule(domain.Rule{
 		ID:     "rule-1",
@@ -646,7 +646,7 @@ func TestStoreErrorBranches(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewClient() error = %v", err)
 	}
-	session, err := domain.NewSession(domain.SessionInput{
+	session, err := domain.NewStoredSession(domain.StoredSessionInput{
 		ID:          "session-1",
 		PrincipalID: "principal-1",
 		ClientID:    client.ID,
@@ -654,7 +654,7 @@ func TestStoreErrorBranches(t *testing.T) {
 		ExpiresAt:   now.Add(time.Hour),
 	}, now)
 	if err != nil {
-		t.Fatalf("NewSession() error = %v", err)
+		t.Fatalf("NewStoredSession() error = %v", err)
 	}
 	grant, err := domain.NewGrant(domain.GrantInput{
 		ID:          "grant-1",

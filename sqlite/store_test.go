@@ -172,7 +172,7 @@ func TestSQLiteRepositoryCRUD(t *testing.T) {
 		t.Fatalf("GetClient() error = %v", err)
 	}
 
-	session, err := domain.NewSession(domain.SessionInput{
+	session, err := domain.NewStoredSession(domain.StoredSessionInput{
 		ID:          "session-1",
 		PrincipalID: principal.ID,
 		ClientID:    client.ID,
@@ -180,7 +180,7 @@ func TestSQLiteRepositoryCRUD(t *testing.T) {
 		ExpiresAt:   now.Add(time.Hour),
 	}, now)
 	if err != nil {
-		t.Fatalf("NewSession() error = %v", err)
+		t.Fatalf("NewStoredSession() error = %v", err)
 	}
 	if err := repo.CreateSession(context.Background(), session); err != nil {
 		t.Fatalf("CreateSession() error = %v", err)
@@ -396,6 +396,32 @@ func TestSQLiteOpenRejectsInvalidPrefix(t *testing.T) {
 	if _, err := OpenWithOptions(dbPath, Options{TablePrefix: "bad-prefix;"}); !errors.Is(err, domain.ErrInvalidConfig) {
 		t.Fatalf("OpenWithOptions() error = %v, want ErrInvalidConfig", err)
 	}
+	if _, err := OpenWithOptions(dbPath, Options{TablePrefix: "123_"}); !errors.Is(err, domain.ErrInvalidConfig) {
+		t.Fatalf("OpenWithOptions(numeric prefix) error = %v, want ErrInvalidConfig", err)
+	}
+}
+
+// TestSQLiteOpenRecordsSchemaVersion verifies the adapter records its current schema version.
+func TestSQLiteOpenRecordsSchemaVersion(t *testing.T) {
+	t.Parallel()
+
+	dbPath := filepath.Join(t.TempDir(), "schema-version.db")
+	repo, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = repo.Close()
+	})
+
+	var version int
+	row := repo.db.QueryRowContext(context.Background(), "SELECT version FROM autent_schema_migrations LIMIT 1")
+	if err := row.Scan(&version); err != nil {
+		t.Fatalf("Scan(schema version) error = %v", err)
+	}
+	if version != currentSchemaVersion {
+		t.Fatalf("schema version = %d, want %d", version, currentSchemaVersion)
+	}
 }
 
 // TestSQLiteWithinTxCRUD verifies transaction-scoped repository methods.
@@ -429,7 +455,7 @@ func TestSQLiteWithinTxCRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewClient() error = %v", err)
 	}
-	session, err := domain.NewSession(domain.SessionInput{
+	session, err := domain.NewStoredSession(domain.StoredSessionInput{
 		ID:          "session-1",
 		PrincipalID: principal.ID,
 		ClientID:    client.ID,
@@ -437,7 +463,7 @@ func TestSQLiteWithinTxCRUD(t *testing.T) {
 		ExpiresAt:   now.Add(time.Hour),
 	}, now)
 	if err != nil {
-		t.Fatalf("NewSession() error = %v", err)
+		t.Fatalf("NewStoredSession() error = %v", err)
 	}
 	grant, err := domain.NewGrant(domain.GrantInput{
 		ID:          "grant-1",
@@ -550,7 +576,7 @@ func TestSQLiteTransactionalPorts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewClient() error = %v", err)
 	}
-	session, err := domain.NewSession(domain.SessionInput{
+	session, err := domain.NewStoredSession(domain.StoredSessionInput{
 		ID:          "session-1",
 		PrincipalID: principal.ID,
 		ClientID:    client.ID,
@@ -558,7 +584,7 @@ func TestSQLiteTransactionalPorts(t *testing.T) {
 		ExpiresAt:   now.Add(time.Hour),
 	}, now)
 	if err != nil {
-		t.Fatalf("NewSession() error = %v", err)
+		t.Fatalf("NewStoredSession() error = %v", err)
 	}
 	rule, err := domain.ValidateAndNormalizeRule(domain.Rule{
 		ID:     "rule-1",

@@ -15,7 +15,7 @@ The `domain` layer owns:
 
 - principals
 - clients
-- sessions
+- caller-safe sessions and verifier-side stored sessions
 - resources
 - actions
 - policy rules
@@ -55,9 +55,9 @@ The adapter contracts live in:
 
 - `store`
 - `token`
-- `audit`
+- `audit` as a reserved namespace for audit-facing docs and future sink helpers
 
-These packages define the extension points needed by the library without forcing a storage or runtime model.
+`store` and `token` define the current extension points needed by the library without forcing a storage or runtime model.
 
 ### Concrete adapters
 
@@ -72,7 +72,7 @@ These packages depend inward on the core.
 
 The intended developer experience is:
 
-1. import `autent`
+1. import `autent` plus one adapter such as `sqlite` or `inmem`
 2. choose or implement a store adapter
 3. construct the service
 4. issue and validate sessions
@@ -80,7 +80,8 @@ The intended developer experience is:
 6. manage grants
 7. read audit records
 
-That means `autent` is primarily a library API, not a service product.
+The root `autent` package exposes a thin façade over the primary app service types.
+Consumers still choose adapters explicitly; the library does not become a service product.
 
 ## What Stays Outside
 
@@ -104,6 +105,7 @@ The architecture assumes these defaults:
 
 - opaque session secrets
 - hashed secrets at rest
+- caller-safe session views at the service boundary
 - constant-time secret verification
 - deny by default
 - explicit grants

@@ -19,7 +19,8 @@ Main package responsibilities:
 
 - `domain`: pure types, invariants, matchers, typed errors
 - `app`: use-cases and orchestration over ports
-- `store`, `token`, `audit`: shared contracts
+- `store`, `token`: shared contracts
+- `audit`: reserved namespace for audit-facing docs and future sink helpers
 - `inmem`, `sqlite`: concrete adapters
 
 User-facing docs live in:
@@ -52,9 +53,9 @@ just test-pkg ./sqlite
 - write idiomatic Go
 - keep interfaces small
 - wrap errors with `%w`
-- add Go doc comments for top-level declarations
+- add Go doc comments for all top-level declarations in production and test code
 - avoid consumer product terminology in the core
-- keep comments short and only where behavior is non-obvious
+- keep comments short but complete wherever behavior or setup would otherwise be non-obvious
 
 ## Documentation Expectations
 
@@ -67,6 +68,7 @@ At minimum, consider whether the change affects:
 - `docs/02-trust-model.md`
 - `docs/03-sqlite-integration.md`
 - `docs/04-human-testing.md`
+- `docs/07-mvp-completion.md`
 
 ## CI and Release Expectations
 

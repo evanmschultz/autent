@@ -28,17 +28,20 @@ To exercise shared-database mode, repeat the same flow with `--db-prefix autent_
 Take the returned `session_id` and `session_secret`, then:
 
 ```bash
+SESSION_ID='paste-session-id-here'
+SESSION_SECRET='paste-session-secret-here'
+
 go run ./cmd/autent-example authz check --db "$DB" \
-  --session <session_id> \
-  --secret <session_secret> \
+  --session "$SESSION_ID" \
+  --secret "$SESSION_SECRET" \
   --action read \
   --namespace project:demo \
   --resource-type task \
   --resource-id task-1
 
 go run ./cmd/autent-example authz check --db "$DB" \
-  --session <session_id> \
-  --secret <session_secret> \
+  --session "$SESSION_ID" \
+  --secret "$SESSION_SECRET" \
   --action mutate \
   --namespace project:demo \
   --resource-type task \
@@ -46,8 +49,8 @@ go run ./cmd/autent-example authz check --db "$DB" \
   --context scope=current
 
 go run ./cmd/autent-example grant request --db "$DB" \
-  --session <session_id> \
-  --secret <session_secret> \
+  --session "$SESSION_ID" \
+  --secret "$SESSION_SECRET" \
   --action mutate \
   --namespace project:demo \
   --resource-type task \
@@ -55,17 +58,45 @@ go run ./cmd/autent-example grant request --db "$DB" \
   --context scope=current \
   --reason "need one mutation"
 
+GRANT_ID='paste-grant-id-here'
+
 go run ./cmd/autent-example grant approve --db "$DB" \
-  --grant-id <grant_id> \
+  --grant-id "$GRANT_ID" \
   --actor approver-1 \
   --note approved \
   --usage-limit 1
 
+go run ./cmd/autent-example authz check --db "$DB" \
+  --session "$SESSION_ID" \
+  --secret "$SESSION_SECRET" \
+  --action mutate \
+  --namespace project:demo \
+  --resource-type task \
+  --resource-id task-1 \
+  --context scope=current
+
+go run ./cmd/autent-example authz check --db "$DB" \
+  --session "$SESSION_ID" \
+  --secret "$SESSION_SECRET" \
+  --action mutate \
+  --namespace project:demo \
+  --resource-type task \
+  --resource-id task-1 \
+  --context scope=current
+
 go run ./cmd/autent-example audit list --db "$DB"
 
 go run ./cmd/autent-example session revoke --db "$DB" \
-  --session <session_id> \
+  --session "$SESSION_ID" \
   --reason done
+
+go run ./cmd/autent-example authz check --db "$DB" \
+  --session "$SESSION_ID" \
+  --secret "$SESSION_SECRET" \
+  --action read \
+  --namespace project:demo \
+  --resource-type task \
+  --resource-id task-1
 ```
 
 ## Expected Behavior
@@ -76,18 +107,18 @@ go run ./cmd/autent-example session revoke --db "$DB" \
 - `grant approve` resolves the grant
 - next identical `mutate` returns `allow`
 - next identical `mutate` again returns `grant_required` when the one-time grant is exhausted
-- revoked sessions return `invalid`
+- the post-revoke `authz check` returns `invalid`
 
 To test the rest of the grant lifecycle, create another pending grant request and then run either:
 
 ```bash
 go run ./cmd/autent-example grant deny --db "$DB" \
-  --grant-id <pending_grant_id> \
+  --grant-id 'paste-pending-grant-id-here' \
   --actor approver-1 \
   --note denied
 
 go run ./cmd/autent-example grant cancel --db "$DB" \
-  --grant-id <pending_grant_id> \
+  --grant-id 'paste-pending-grant-id-here' \
   --actor operator-1 \
   --note withdrawn
 ```

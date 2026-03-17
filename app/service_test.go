@@ -25,6 +25,22 @@ func TestNewServiceRequiresDependencies(t *testing.T) {
 	}
 }
 
+// TestNewServiceDefaultsIDGenerator verifies the service can construct without a caller-supplied ID generator.
+func TestNewServiceDefaultsIDGenerator(t *testing.T) {
+	t.Parallel()
+
+	service, err := NewService(Config{
+		Repository: inmem.NewRepository(),
+		Secrets:    token.OpaqueSecretManager{},
+	})
+	if err != nil {
+		t.Fatalf("NewService() error = %v", err)
+	}
+	if service.idGen == nil {
+		t.Fatal("service.idGen = nil, want default generator")
+	}
+}
+
 // TestServiceIssueValidateRevokeSession verifies the core session lifecycle.
 func TestServiceIssueValidateRevokeSession(t *testing.T) {
 	t.Parallel()
@@ -63,6 +79,9 @@ func TestServiceIssueValidateRevokeSession(t *testing.T) {
 	if validated.Principal.ID != principal.ID {
 		t.Fatalf("validated.Principal.ID = %q, want %q", validated.Principal.ID, principal.ID)
 	}
+	if validated.Session.ID != issued.Session.ID {
+		t.Fatalf("validated.Session.ID = %q, want %q", validated.Session.ID, issued.Session.ID)
+	}
 	if _, err := service.ValidateSession(context.Background(), issued.Session.ID, "wrong-secret"); !errors.Is(err, domain.ErrInvalidSessionSecret) {
 		t.Fatalf("ValidateSession(wrong secret) error = %v, want ErrInvalidSessionSecret", err)
 	}
@@ -71,6 +90,58 @@ func TestServiceIssueValidateRevokeSession(t *testing.T) {
 	}
 	if _, err := service.ValidateSession(context.Background(), issued.Session.ID, issued.Secret); !errors.Is(err, domain.ErrSessionRevoked) {
 		t.Fatalf("ValidateSession(revoked) error = %v, want ErrSessionRevoked", err)
+	}
+}
+
+// TestServiceAuthorizeExpiredSessionReturnsDecision verifies expired sessions map to a stable decision code.
+func TestServiceAuthorizeExpiredSessionReturnsDecision(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.March, 14, 12, 0, 0, 0, time.UTC)
+	clockNow := now
+	service := newTestService(t, func() time.Time { return clockNow })
+
+	principal, err := service.RegisterPrincipal(context.Background(), domain.PrincipalInput{
+		ID:          "principal-1",
+		Type:        domain.PrincipalTypeUser,
+		DisplayName: "User One",
+	})
+	if err != nil {
+		t.Fatalf("RegisterPrincipal() error = %v", err)
+	}
+	client, err := service.RegisterClient(context.Background(), domain.ClientInput{
+		ID:          "client-1",
+		DisplayName: "CLI",
+		Type:        "cli",
+	})
+	if err != nil {
+		t.Fatalf("RegisterClient() error = %v", err)
+	}
+	issued, err := service.IssueSession(context.Background(), IssueSessionInput{
+		PrincipalID: principal.ID,
+		ClientID:    client.ID,
+		TTL:         time.Minute,
+	})
+	if err != nil {
+		t.Fatalf("IssueSession() error = %v", err)
+	}
+
+	clockNow = now.Add(2 * time.Minute)
+	decision, err := service.Authorize(context.Background(), AuthorizeInput{
+		SessionID:     issued.Session.ID,
+		SessionSecret: issued.Secret,
+		Action:        "read",
+		Resource: domain.ResourceRef{
+			Namespace: "project:demo",
+			Type:      "task",
+			ID:        "task-1",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Authorize() error = %v", err)
+	}
+	if decision.Code != domain.DecisionSessionExpired || decision.Reason != "session_expired" {
+		t.Fatalf("decision = %+v, want session_expired", decision)
 	}
 }
 
@@ -644,6 +715,7 @@ func newTestService(t *testing.T, clock func() time.Time) *Service {
 	return newServiceWithRepository(t, inmem.NewRepository(), clock)
 }
 
+// newServiceWithRepository constructs a service backed by one caller-supplied repository.
 func newServiceWithRepository(t *testing.T, repo store.Repository, clock func() time.Time) *Service {
 	t.Helper()
 
@@ -659,16 +731,19 @@ func newServiceWithRepository(t *testing.T, repo store.Repository, clock func() 
 	return service
 }
 
+// disabledPrincipalRepository forces principal lookups to appear disabled for negative-path tests.
 type disabledPrincipalRepository struct {
 	store.Repository
 }
 
+// WithinTx preserves the disabled-principal wrapper inside nested transaction callbacks.
 func (repo disabledPrincipalRepository) WithinTx(ctx context.Context, fn func(store.Repository) error) error {
 	return repo.Repository.WithinTx(ctx, func(txRepo store.Repository) error {
 		return fn(disabledPrincipalRepository{Repository: txRepo})
 	})
 }
 
+// GetPrincipal returns one disabled principal regardless of the stored principal status.
 func (repo disabledPrincipalRepository) GetPrincipal(ctx context.Context, id string) (domain.Principal, error) {
 	principal, err := repo.Repository.GetPrincipal(ctx, id)
 	if err != nil {

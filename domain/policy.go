@@ -175,6 +175,7 @@ func (r Rule) Matches(req AuthorizationRequest) bool {
 	return true
 }
 
+// matchesPatterns reports whether any pattern matches one candidate string.
 func matchesPatterns(patterns []StringPattern, candidate string) bool {
 	if len(patterns) == 0 {
 		return true
@@ -184,6 +185,7 @@ func matchesPatterns(patterns []StringPattern, candidate string) bool {
 	})
 }
 
+// matchesResourcePatterns reports whether any resource pattern matches one resource.
 func matchesResourcePatterns(patterns []ResourcePattern, resource ResourceRef) bool {
 	return slices.ContainsFunc(patterns, func(pattern ResourcePattern) bool {
 		return pattern.Matches(resource)
@@ -217,6 +219,7 @@ func ValidateAndNormalizeRule(rule Rule) (Rule, error) {
 	return normalized, nil
 }
 
+// normalizePatterns trims and normalizes one pattern slice.
 func normalizePatterns(patterns []StringPattern) []StringPattern {
 	if len(patterns) == 0 {
 		return nil
@@ -235,6 +238,7 @@ func normalizePatterns(patterns []StringPattern) []StringPattern {
 	return out
 }
 
+// normalizeResourcePatterns trims and normalizes one resource pattern slice.
 func normalizeResourcePatterns(patterns []ResourcePattern) []ResourcePattern {
 	if len(patterns) == 0 {
 		return nil
@@ -254,6 +258,7 @@ func normalizeResourcePatterns(patterns []ResourcePattern) []ResourcePattern {
 	return out
 }
 
+// normalizeConditions trims and normalizes one condition slice.
 func normalizeConditions(conditions []Condition) []Condition {
 	if len(conditions) == 0 {
 		return nil

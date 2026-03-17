@@ -17,7 +17,7 @@ type Store struct {
 	mu         sync.RWMutex
 	principals map[string]domain.Principal
 	clients    map[string]domain.Client
-	sessions   map[string]domain.Session
+	sessions   map[string]domain.StoredSession
 	rules      []domain.Rule
 	grants     map[string]domain.Grant
 	audit      []domain.AuditEvent
@@ -28,7 +28,7 @@ func NewStore() *Store {
 	return &Store{
 		principals: make(map[string]domain.Principal),
 		clients:    make(map[string]domain.Client),
-		sessions:   make(map[string]domain.Session),
+		sessions:   make(map[string]domain.StoredSession),
 		grants:     make(map[string]domain.Grant),
 		audit:      make([]domain.AuditEvent, 0),
 	}
@@ -129,8 +129,8 @@ func (s *Store) UpdateClient(_ context.Context, client domain.Client) error {
 	return nil
 }
 
-// CreateSession stores a session.
-func (s *Store) CreateSession(_ context.Context, session domain.Session) error {
+// CreateSession stores one verifier-side session record.
+func (s *Store) CreateSession(_ context.Context, session domain.StoredSession) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.sessions[session.ID]; ok {
@@ -140,19 +140,19 @@ func (s *Store) CreateSession(_ context.Context, session domain.Session) error {
 	return nil
 }
 
-// GetSession loads a session by id.
-func (s *Store) GetSession(_ context.Context, id string) (domain.Session, error) {
+// GetSession loads one verifier-side session record by id.
+func (s *Store) GetSession(_ context.Context, id string) (domain.StoredSession, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	session, ok := s.sessions[strings.TrimSpace(id)]
 	if !ok {
-		return domain.Session{}, domain.ErrSessionNotFound
+		return domain.StoredSession{}, domain.ErrSessionNotFound
 	}
 	return cloneSession(session), nil
 }
 
-// UpdateSession replaces a stored session.
-func (s *Store) UpdateSession(_ context.Context, session domain.Session) error {
+// UpdateSession replaces one stored verifier-side session record.
+func (s *Store) UpdateSession(_ context.Context, session domain.StoredSession) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.sessions[session.ID]; !ok {
@@ -162,15 +162,15 @@ func (s *Store) UpdateSession(_ context.Context, session domain.Session) error {
 	return nil
 }
 
-// ListSessions returns all stored sessions ordered by id.
-func (s *Store) ListSessions(_ context.Context) ([]domain.Session, error) {
+// ListSessions returns all stored verifier-side session records ordered by id.
+func (s *Store) ListSessions(_ context.Context) ([]domain.StoredSession, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	out := make([]domain.Session, 0, len(s.sessions))
+	out := make([]domain.StoredSession, 0, len(s.sessions))
 	for _, session := range s.sessions {
 		out = append(out, cloneSession(session))
 	}
-	slices.SortFunc(out, func(a, b domain.Session) int { return strings.Compare(a.ID, b.ID) })
+	slices.SortFunc(out, func(a, b domain.StoredSession) int { return strings.Compare(a.ID, b.ID) })
 	return out, nil
 }
 
@@ -351,10 +351,12 @@ func (s *Store) WithinTx(_ context.Context, fn func(store.Repository) error) err
 	return nil
 }
 
+// lockedStore provides transaction-local repository behavior over one cloned in-memory store.
 type lockedStore struct {
 	base *Store
 }
 
+// CreatePrincipal stores one principal in the transaction-local clone.
 func (s lockedStore) CreatePrincipal(_ context.Context, principal domain.Principal) error {
 	if _, ok := s.base.principals[principal.ID]; ok {
 		return fmt.Errorf("create principal %q: %w", principal.ID, domain.ErrAlreadyExists)
@@ -363,6 +365,7 @@ func (s lockedStore) CreatePrincipal(_ context.Context, principal domain.Princip
 	return nil
 }
 
+// GetPrincipal loads one principal from the transaction-local clone.
 func (s lockedStore) GetPrincipal(_ context.Context, id string) (domain.Principal, error) {
 	principal, ok := s.base.principals[strings.TrimSpace(id)]
 	if !ok {
@@ -371,6 +374,7 @@ func (s lockedStore) GetPrincipal(_ context.Context, id string) (domain.Principa
 	return clonePrincipal(principal), nil
 }
 
+// ListPrincipals returns all principals from the transaction-local clone.
 func (s lockedStore) ListPrincipals(_ context.Context) ([]domain.Principal, error) {
 	out := make([]domain.Principal, 0, len(s.base.principals))
 	for _, principal := range s.base.principals {
@@ -380,6 +384,7 @@ func (s lockedStore) ListPrincipals(_ context.Context) ([]domain.Principal, erro
 	return out, nil
 }
 
+// UpdatePrincipal replaces one principal in the transaction-local clone.
 func (s lockedStore) UpdatePrincipal(_ context.Context, principal domain.Principal) error {
 	if _, ok := s.base.principals[principal.ID]; !ok {
 		return domain.ErrPrincipalNotFound
@@ -388,6 +393,7 @@ func (s lockedStore) UpdatePrincipal(_ context.Context, principal domain.Princip
 	return nil
 }
 
+// CreateClient stores one client in the transaction-local clone.
 func (s lockedStore) CreateClient(_ context.Context, client domain.Client) error {
 	if _, ok := s.base.clients[client.ID]; ok {
 		return fmt.Errorf("create client %q: %w", client.ID, domain.ErrAlreadyExists)
@@ -396,6 +402,7 @@ func (s lockedStore) CreateClient(_ context.Context, client domain.Client) error
 	return nil
 }
 
+// GetClient loads one client from the transaction-local clone.
 func (s lockedStore) GetClient(_ context.Context, id string) (domain.Client, error) {
 	client, ok := s.base.clients[strings.TrimSpace(id)]
 	if !ok {
@@ -404,6 +411,7 @@ func (s lockedStore) GetClient(_ context.Context, id string) (domain.Client, err
 	return cloneClient(client), nil
 }
 
+// ListClients returns all clients from the transaction-local clone.
 func (s lockedStore) ListClients(_ context.Context) ([]domain.Client, error) {
 	out := make([]domain.Client, 0, len(s.base.clients))
 	for _, client := range s.base.clients {
@@ -413,6 +421,7 @@ func (s lockedStore) ListClients(_ context.Context) ([]domain.Client, error) {
 	return out, nil
 }
 
+// UpdateClient replaces one client in the transaction-local clone.
 func (s lockedStore) UpdateClient(_ context.Context, client domain.Client) error {
 	if _, ok := s.base.clients[client.ID]; !ok {
 		return domain.ErrClientNotFound
@@ -421,7 +430,8 @@ func (s lockedStore) UpdateClient(_ context.Context, client domain.Client) error
 	return nil
 }
 
-func (s lockedStore) CreateSession(_ context.Context, session domain.Session) error {
+// CreateSession stores one verifier-side session record in the transaction-local clone.
+func (s lockedStore) CreateSession(_ context.Context, session domain.StoredSession) error {
 	if _, ok := s.base.sessions[session.ID]; ok {
 		return fmt.Errorf("create session %q: %w", session.ID, domain.ErrAlreadyExists)
 	}
@@ -429,15 +439,17 @@ func (s lockedStore) CreateSession(_ context.Context, session domain.Session) er
 	return nil
 }
 
-func (s lockedStore) GetSession(_ context.Context, id string) (domain.Session, error) {
+// GetSession loads one verifier-side session record from the transaction-local clone.
+func (s lockedStore) GetSession(_ context.Context, id string) (domain.StoredSession, error) {
 	session, ok := s.base.sessions[strings.TrimSpace(id)]
 	if !ok {
-		return domain.Session{}, domain.ErrSessionNotFound
+		return domain.StoredSession{}, domain.ErrSessionNotFound
 	}
 	return cloneSession(session), nil
 }
 
-func (s lockedStore) UpdateSession(_ context.Context, session domain.Session) error {
+// UpdateSession replaces one verifier-side session record in the transaction-local clone.
+func (s lockedStore) UpdateSession(_ context.Context, session domain.StoredSession) error {
 	if _, ok := s.base.sessions[session.ID]; !ok {
 		return domain.ErrSessionNotFound
 	}
@@ -445,24 +457,28 @@ func (s lockedStore) UpdateSession(_ context.Context, session domain.Session) er
 	return nil
 }
 
-func (s lockedStore) ListSessions(_ context.Context) ([]domain.Session, error) {
-	out := make([]domain.Session, 0, len(s.base.sessions))
+// ListSessions returns all verifier-side session records from the transaction-local clone.
+func (s lockedStore) ListSessions(_ context.Context) ([]domain.StoredSession, error) {
+	out := make([]domain.StoredSession, 0, len(s.base.sessions))
 	for _, session := range s.base.sessions {
 		out = append(out, cloneSession(session))
 	}
-	slices.SortFunc(out, func(a, b domain.Session) int { return strings.Compare(a.ID, b.ID) })
+	slices.SortFunc(out, func(a, b domain.StoredSession) int { return strings.Compare(a.ID, b.ID) })
 	return out, nil
 }
 
+// ReplaceRules replaces the transaction-local rule set.
 func (s lockedStore) ReplaceRules(_ context.Context, rules []domain.Rule) error {
 	s.base.rules = cloneRules(rules)
 	return nil
 }
 
+// ListRules returns the transaction-local rule set.
 func (s lockedStore) ListRules(_ context.Context) ([]domain.Rule, error) {
 	return cloneRules(s.base.rules), nil
 }
 
+// CreateGrant stores one grant in the transaction-local clone.
 func (s lockedStore) CreateGrant(_ context.Context, grant domain.Grant) error {
 	if _, ok := s.base.grants[grant.ID]; ok {
 		return fmt.Errorf("create grant %q: %w", grant.ID, domain.ErrAlreadyExists)
@@ -471,6 +487,7 @@ func (s lockedStore) CreateGrant(_ context.Context, grant domain.Grant) error {
 	return nil
 }
 
+// GetGrant loads one grant from the transaction-local clone.
 func (s lockedStore) GetGrant(_ context.Context, id string) (domain.Grant, error) {
 	grant, ok := s.base.grants[strings.TrimSpace(id)]
 	if !ok {
@@ -479,6 +496,7 @@ func (s lockedStore) GetGrant(_ context.Context, id string) (domain.Grant, error
 	return cloneGrant(grant), nil
 }
 
+// UpdateGrant replaces one grant in the transaction-local clone.
 func (s lockedStore) UpdateGrant(_ context.Context, grant domain.Grant) error {
 	if _, ok := s.base.grants[grant.ID]; !ok {
 		return domain.ErrGrantNotFound
@@ -487,6 +505,7 @@ func (s lockedStore) UpdateGrant(_ context.Context, grant domain.Grant) error {
 	return nil
 }
 
+// FindGrant returns the newest matching grant from the transaction-local clone.
 func (s lockedStore) FindGrant(ctx context.Context, query domain.GrantQuery) (domain.Grant, error) {
 	_ = ctx
 	matches := make([]domain.Grant, 0)
@@ -526,6 +545,7 @@ func (s lockedStore) FindGrant(ctx context.Context, query domain.GrantQuery) (do
 	return matches[0], nil
 }
 
+// ListGrants returns all grants from the transaction-local clone.
 func (s lockedStore) ListGrants(_ context.Context) ([]domain.Grant, error) {
 	out := make([]domain.Grant, 0, len(s.base.grants))
 	for _, grant := range s.base.grants {
@@ -543,11 +563,13 @@ func (s lockedStore) ListGrants(_ context.Context) ([]domain.Grant, error) {
 	return out, nil
 }
 
+// AppendAuditEvent appends one audit event to the transaction-local clone.
 func (s lockedStore) AppendAuditEvent(_ context.Context, event domain.AuditEvent) error {
 	s.base.audit = append(s.base.audit, cloneAuditEvent(event))
 	return nil
 }
 
+// ListAuditEvents returns filtered audit events from the transaction-local clone.
 func (s lockedStore) ListAuditEvents(_ context.Context, filter domain.AuditFilter) ([]domain.AuditEvent, error) {
 	out := make([]domain.AuditEvent, 0, len(s.base.audit))
 	for _, event := range s.base.audit {
@@ -579,8 +601,11 @@ func (s lockedStore) ListAuditEvents(_ context.Context, filter domain.AuditFilte
 	}
 	return out, nil
 }
+
+// WithinTx reuses the transaction-local clone for nested transaction calls.
 func (s lockedStore) WithinTx(_ context.Context, fn func(store.Repository) error) error { return fn(s) }
 
+// clonePrincipal returns one deep-copied principal value.
 func clonePrincipal(principal domain.Principal) domain.Principal {
 	return domain.Principal{
 		ID:          principal.ID,
@@ -594,6 +619,7 @@ func clonePrincipal(principal domain.Principal) domain.Principal {
 	}
 }
 
+// clonePrincipalMap returns one deep copy of a principal map.
 func clonePrincipalMap(in map[string]domain.Principal) map[string]domain.Principal {
 	if len(in) == 0 {
 		return make(map[string]domain.Principal)
@@ -605,6 +631,7 @@ func clonePrincipalMap(in map[string]domain.Principal) map[string]domain.Princip
 	return out
 }
 
+// cloneClient returns one deep-copied client value.
 func cloneClient(client domain.Client) domain.Client {
 	return domain.Client{
 		ID:          client.ID,
@@ -617,6 +644,7 @@ func cloneClient(client domain.Client) domain.Client {
 	}
 }
 
+// cloneClientMap returns one deep copy of a client map.
 func cloneClientMap(in map[string]domain.Client) map[string]domain.Client {
 	if len(in) == 0 {
 		return make(map[string]domain.Client)
@@ -628,34 +656,39 @@ func cloneClientMap(in map[string]domain.Client) map[string]domain.Client {
 	return out
 }
 
-func cloneSession(session domain.Session) domain.Session {
+// cloneSession returns one deep-copied stored session value.
+func cloneSession(session domain.StoredSession) domain.StoredSession {
 	hash := make([]byte, len(session.SecretHash))
 	copy(hash, session.SecretHash)
-	return domain.Session{
-		ID:               session.ID,
-		PrincipalID:      session.PrincipalID,
-		ClientID:         session.ClientID,
-		SecretHash:       hash,
-		IssuedAt:         session.IssuedAt,
-		ExpiresAt:        session.ExpiresAt,
-		LastSeenAt:       session.LastSeenAt,
-		RevokedAt:        copyTime(session.RevokedAt),
-		RevocationReason: session.RevocationReason,
-		Metadata:         copyStringMap(session.Metadata),
+	return domain.StoredSession{
+		Session: domain.Session{
+			ID:               session.ID,
+			PrincipalID:      session.PrincipalID,
+			ClientID:         session.ClientID,
+			IssuedAt:         session.IssuedAt,
+			ExpiresAt:        session.ExpiresAt,
+			LastSeenAt:       session.LastSeenAt,
+			RevokedAt:        copyTime(session.RevokedAt),
+			RevocationReason: session.RevocationReason,
+			Metadata:         copyStringMap(session.Metadata),
+		},
+		SecretHash: hash,
 	}
 }
 
-func cloneSessionMap(in map[string]domain.Session) map[string]domain.Session {
+// cloneSessionMap returns one deep copy of a stored-session map.
+func cloneSessionMap(in map[string]domain.StoredSession) map[string]domain.StoredSession {
 	if len(in) == 0 {
-		return make(map[string]domain.Session)
+		return make(map[string]domain.StoredSession)
 	}
-	out := make(map[string]domain.Session, len(in))
+	out := make(map[string]domain.StoredSession, len(in))
 	for key, value := range in {
 		out[key] = cloneSession(value)
 	}
 	return out
 }
 
+// cloneGrant returns one deep-copied grant value.
 func cloneGrant(grant domain.Grant) domain.Grant {
 	return domain.Grant{
 		ID:             grant.ID,
@@ -678,6 +711,7 @@ func cloneGrant(grant domain.Grant) domain.Grant {
 	}
 }
 
+// cloneGrantMap returns one deep copy of a grant map.
 func cloneGrantMap(in map[string]domain.Grant) map[string]domain.Grant {
 	if len(in) == 0 {
 		return make(map[string]domain.Grant)
@@ -689,6 +723,7 @@ func cloneGrantMap(in map[string]domain.Grant) map[string]domain.Grant {
 	return out
 }
 
+// cloneRules returns one deep copy of a rule slice.
 func cloneRules(rules []domain.Rule) []domain.Rule {
 	if len(rules) == 0 {
 		return nil
@@ -718,6 +753,7 @@ func cloneRules(rules []domain.Rule) []domain.Rule {
 	return out
 }
 
+// cloneResourcePatterns returns one deep copy of resource patterns.
 func cloneResourcePatterns(patterns []domain.ResourcePattern) []domain.ResourcePattern {
 	if len(patterns) == 0 {
 		return nil
@@ -734,6 +770,7 @@ func cloneResourcePatterns(patterns []domain.ResourcePattern) []domain.ResourceP
 	return out
 }
 
+// cloneAuditEvent returns one deep-copied audit event.
 func cloneAuditEvent(event domain.AuditEvent) domain.AuditEvent {
 	return domain.AuditEvent{
 		ID:           event.ID,
@@ -750,6 +787,7 @@ func cloneAuditEvent(event domain.AuditEvent) domain.AuditEvent {
 	}
 }
 
+// cloneAuditEvents returns one deep copy of audit events.
 func cloneAuditEvents(events []domain.AuditEvent) []domain.AuditEvent {
 	if len(events) == 0 {
 		return nil
@@ -761,6 +799,7 @@ func cloneAuditEvents(events []domain.AuditEvent) []domain.AuditEvent {
 	return out
 }
 
+// cloneResource returns one deep-copied resource reference.
 func cloneResource(resource domain.ResourceRef) domain.ResourceRef {
 	return domain.ResourceRef{
 		Namespace:  resource.Namespace,
@@ -770,6 +809,7 @@ func cloneResource(resource domain.ResourceRef) domain.ResourceRef {
 	}
 }
 
+// copyStringMap returns one shallow-copied string map.
 func copyStringMap(in map[string]string) map[string]string {
 	if len(in) == 0 {
 		return nil
@@ -781,6 +821,7 @@ func copyStringMap(in map[string]string) map[string]string {
 	return out
 }
 
+// copyTime returns one copied UTC timestamp pointer.
 func copyTime(ts *time.Time) *time.Time {
 	if ts == nil {
 		return nil

@@ -16,7 +16,11 @@ import (
 	"github.com/evanmschultz/autent/store"
 )
 
+// defaultTablePrefix scopes autent tables inside one SQLite database by default.
 const defaultTablePrefix = "autent_"
+
+// currentSchemaVersion is the latest SQLite schema version understood by this adapter.
+const currentSchemaVersion = 1
 
 // Options configures the SQLite adapter.
 type Options struct {
@@ -25,13 +29,15 @@ type Options struct {
 	TablePrefix string
 }
 
+// tableNames holds the concrete table names derived from one configured prefix.
 type tableNames struct {
-	principals  string
-	clients     string
-	sessions    string
-	rules       string
-	grants      string
-	auditEvents string
+	schemaMigrations string
+	principals       string
+	clients          string
+	sessions         string
+	rules            string
+	grants           string
+	auditEvents      string
 }
 
 // Store is a SQLite-backed autent repository.
@@ -84,6 +90,7 @@ func (s *Store) Close() error {
 	return s.db.Close()
 }
 
+// newStore validates adapter options around one open database handle.
 func newStore(db *sql.DB, options Options, ownDB bool) (*Store, error) {
 	tables, err := newTableNames(options.TablePrefix)
 	if err != nil {
@@ -96,27 +103,33 @@ func newStore(db *sql.DB, options Options, ownDB bool) (*Store, error) {
 	}, nil
 }
 
+// newTableNames expands one configured prefix into the adapter's table set.
 func newTableNames(prefix string) (tableNames, error) {
 	normalized, err := normalizeTablePrefix(prefix)
 	if err != nil {
 		return tableNames{}, err
 	}
 	return tableNames{
-		principals:  normalized + "principals",
-		clients:     normalized + "clients",
-		sessions:    normalized + "sessions",
-		rules:       normalized + "rules",
-		grants:      normalized + "grants",
-		auditEvents: normalized + "audit_events",
+		schemaMigrations: normalized + "schema_migrations",
+		principals:       normalized + "principals",
+		clients:          normalized + "clients",
+		sessions:         normalized + "sessions",
+		rules:            normalized + "rules",
+		grants:           normalized + "grants",
+		auditEvents:      normalized + "audit_events",
 	}, nil
 }
 
+// normalizeTablePrefix validates and normalizes one configured table prefix.
 func normalizeTablePrefix(prefix string) (string, error) {
 	normalized := strings.TrimSpace(prefix)
 	if normalized == "" {
 		return defaultTablePrefix, nil
 	}
-	for _, r := range normalized {
+	for idx, r := range normalized {
+		if idx == 0 && (r != '_' && (r < 'A' || r > 'z' || (r > 'Z' && r < 'a'))) {
+			return "", fmt.Errorf("table prefix %q: %w", prefix, domain.ErrInvalidConfig)
+		}
 		if r == '_' || (r >= '0' && r <= '9') || (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') {
 			continue
 		}
@@ -165,23 +178,23 @@ func (s *Store) UpdateClient(ctx context.Context, client domain.Client) error {
 	return updateClient(ctx, s.db, s.tables, client)
 }
 
-// CreateSession stores a session.
-func (s *Store) CreateSession(ctx context.Context, session domain.Session) error {
+// CreateSession stores one verifier-side session record.
+func (s *Store) CreateSession(ctx context.Context, session domain.StoredSession) error {
 	return createSession(ctx, s.db, s.tables, session)
 }
 
-// GetSession loads a session by id.
-func (s *Store) GetSession(ctx context.Context, id string) (domain.Session, error) {
+// GetSession loads one verifier-side session record by id.
+func (s *Store) GetSession(ctx context.Context, id string) (domain.StoredSession, error) {
 	return getSession(ctx, s.db, s.tables, id)
 }
 
-// UpdateSession updates a session.
-func (s *Store) UpdateSession(ctx context.Context, session domain.Session) error {
+// UpdateSession updates one verifier-side session record.
+func (s *Store) UpdateSession(ctx context.Context, session domain.StoredSession) error {
 	return updateSession(ctx, s.db, s.tables, session)
 }
 
-// ListSessions returns all stored sessions ordered by id.
-func (s *Store) ListSessions(ctx context.Context) ([]domain.Session, error) {
+// ListSessions returns all stored verifier-side session records ordered by id.
+func (s *Store) ListSessions(ctx context.Context) ([]domain.StoredSession, error) {
 	return listSessions(ctx, s.db, s.tables)
 }
 
@@ -247,105 +260,130 @@ func (s *Store) WithinTx(ctx context.Context, fn func(store.Repository) error) e
 	return nil
 }
 
+// txStore routes repository calls through one SQLite transaction.
 type txStore struct {
 	tx     *sql.Tx
 	tables tableNames
 }
 
+// CreatePrincipal stores one principal inside the transaction.
 func (s txStore) CreatePrincipal(ctx context.Context, principal domain.Principal) error {
 	return createPrincipal(ctx, s.tx, s.tables, principal)
 }
 
+// GetPrincipal loads one principal inside the transaction.
 func (s txStore) GetPrincipal(ctx context.Context, id string) (domain.Principal, error) {
 	return getPrincipal(ctx, s.tx, s.tables, id)
 }
 
+// ListPrincipals returns all principals inside the transaction.
 func (s txStore) ListPrincipals(ctx context.Context) ([]domain.Principal, error) {
 	return listPrincipals(ctx, s.tx, s.tables)
 }
 
+// UpdatePrincipal updates one principal inside the transaction.
 func (s txStore) UpdatePrincipal(ctx context.Context, principal domain.Principal) error {
 	return updatePrincipal(ctx, s.tx, s.tables, principal)
 }
 
+// CreateClient stores one client inside the transaction.
 func (s txStore) CreateClient(ctx context.Context, client domain.Client) error {
 	return createClient(ctx, s.tx, s.tables, client)
 }
 
+// GetClient loads one client inside the transaction.
 func (s txStore) GetClient(ctx context.Context, id string) (domain.Client, error) {
 	return getClient(ctx, s.tx, s.tables, id)
 }
 
+// ListClients returns all clients inside the transaction.
 func (s txStore) ListClients(ctx context.Context) ([]domain.Client, error) {
 	return listClients(ctx, s.tx, s.tables)
 }
 
+// UpdateClient updates one client inside the transaction.
 func (s txStore) UpdateClient(ctx context.Context, client domain.Client) error {
 	return updateClient(ctx, s.tx, s.tables, client)
 }
 
-func (s txStore) CreateSession(ctx context.Context, session domain.Session) error {
+// CreateSession stores one verifier-side session record inside the transaction.
+func (s txStore) CreateSession(ctx context.Context, session domain.StoredSession) error {
 	return createSession(ctx, s.tx, s.tables, session)
 }
 
-func (s txStore) GetSession(ctx context.Context, id string) (domain.Session, error) {
+// GetSession loads one verifier-side session record inside the transaction.
+func (s txStore) GetSession(ctx context.Context, id string) (domain.StoredSession, error) {
 	return getSession(ctx, s.tx, s.tables, id)
 }
 
-func (s txStore) UpdateSession(ctx context.Context, session domain.Session) error {
+// UpdateSession updates one verifier-side session record inside the transaction.
+func (s txStore) UpdateSession(ctx context.Context, session domain.StoredSession) error {
 	return updateSession(ctx, s.tx, s.tables, session)
 }
 
-func (s txStore) ListSessions(ctx context.Context) ([]domain.Session, error) {
+// ListSessions returns all verifier-side session records inside the transaction.
+func (s txStore) ListSessions(ctx context.Context) ([]domain.StoredSession, error) {
 	return listSessions(ctx, s.tx, s.tables)
 }
 
+// ReplaceRules replaces the persisted rule set inside the transaction.
 func (s txStore) ReplaceRules(ctx context.Context, rules []domain.Rule) error {
 	return replaceRules(ctx, s.tx, s.tables, rules)
 }
 
+// ListRules returns the persisted rule set inside the transaction.
 func (s txStore) ListRules(ctx context.Context) ([]domain.Rule, error) {
 	return listRules(ctx, s.tx, s.tables)
 }
 
+// CreateGrant stores one grant inside the transaction.
 func (s txStore) CreateGrant(ctx context.Context, grant domain.Grant) error {
 	return createGrant(ctx, s.tx, s.tables, grant)
 }
 
+// GetGrant loads one grant inside the transaction.
 func (s txStore) GetGrant(ctx context.Context, id string) (domain.Grant, error) {
 	return getGrant(ctx, s.tx, s.tables, id)
 }
 
+// UpdateGrant updates one grant inside the transaction.
 func (s txStore) UpdateGrant(ctx context.Context, grant domain.Grant) error {
 	return updateGrant(ctx, s.tx, s.tables, grant)
 }
 
+// FindGrant returns the newest matching grant inside the transaction.
 func (s txStore) FindGrant(ctx context.Context, query domain.GrantQuery) (domain.Grant, error) {
 	return findGrant(ctx, s.tx, s.tables, query)
 }
 
+// ListGrants returns all grants inside the transaction.
 func (s txStore) ListGrants(ctx context.Context) ([]domain.Grant, error) {
 	return listGrants(ctx, s.tx, s.tables)
 }
 
+// AppendAuditEvent appends one audit event inside the transaction.
 func (s txStore) AppendAuditEvent(ctx context.Context, event domain.AuditEvent) error {
 	return appendAuditEvent(ctx, s.tx, s.tables, event)
 }
 
+// ListAuditEvents returns filtered audit events inside the transaction.
 func (s txStore) ListAuditEvents(ctx context.Context, filter domain.AuditFilter) ([]domain.AuditEvent, error) {
 	return listAuditEvents(ctx, s.tx, s.tables, filter)
 }
 
+// WithinTx reuses the current transaction for nested transactional work.
 func (s txStore) WithinTx(_ context.Context, fn func(store.Repository) error) error {
 	return fn(s)
 }
 
+// execQuerier captures the sql.DB and sql.Tx methods used by the adapter helpers.
 type execQuerier interface {
 	ExecContext(context.Context, string, ...any) (sql.Result, error)
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 	QueryRowContext(context.Context, string, ...any) *sql.Row
 }
 
+// createPrincipal stores one principal payload.
 func createPrincipal(ctx context.Context, db execQuerier, tables tableNames, principal domain.Principal) error {
 	payload, err := json.Marshal(principal)
 	if err != nil {
@@ -358,6 +396,7 @@ func createPrincipal(ctx context.Context, db execQuerier, tables tableNames, pri
 	return err
 }
 
+// getPrincipal loads one principal payload.
 func getPrincipal(ctx context.Context, db execQuerier, tables tableNames, id string) (domain.Principal, error) {
 	var payload []byte
 	err := db.QueryRowContext(ctx, fmt.Sprintf(`SELECT payload FROM %s WHERE id = ?`, tables.principals), strings.TrimSpace(id)).Scan(&payload)
@@ -374,6 +413,7 @@ func getPrincipal(ctx context.Context, db execQuerier, tables tableNames, id str
 	return principal, nil
 }
 
+// updatePrincipal updates one principal payload.
 func updatePrincipal(ctx context.Context, db execQuerier, tables tableNames, principal domain.Principal) error {
 	payload, err := json.Marshal(principal)
 	if err != nil {
@@ -393,6 +433,7 @@ func updatePrincipal(ctx context.Context, db execQuerier, tables tableNames, pri
 	return nil
 }
 
+// listPrincipals returns all principal payloads ordered by id.
 func listPrincipals(ctx context.Context, db execQuerier, tables tableNames) ([]domain.Principal, error) {
 	rows, err := db.QueryContext(ctx, fmt.Sprintf(`SELECT payload FROM %s ORDER BY id`, tables.principals))
 	if err != nil {
@@ -417,6 +458,7 @@ func listPrincipals(ctx context.Context, db execQuerier, tables tableNames) ([]d
 	return out, rows.Err()
 }
 
+// createClient stores one client payload.
 func createClient(ctx context.Context, db execQuerier, tables tableNames, client domain.Client) error {
 	payload, err := json.Marshal(client)
 	if err != nil {
@@ -429,6 +471,7 @@ func createClient(ctx context.Context, db execQuerier, tables tableNames, client
 	return err
 }
 
+// getClient loads one client payload.
 func getClient(ctx context.Context, db execQuerier, tables tableNames, id string) (domain.Client, error) {
 	var payload []byte
 	err := db.QueryRowContext(ctx, fmt.Sprintf(`SELECT payload FROM %s WHERE id = ?`, tables.clients), strings.TrimSpace(id)).Scan(&payload)
@@ -445,6 +488,7 @@ func getClient(ctx context.Context, db execQuerier, tables tableNames, id string
 	return client, nil
 }
 
+// updateClient updates one client payload.
 func updateClient(ctx context.Context, db execQuerier, tables tableNames, client domain.Client) error {
 	payload, err := json.Marshal(client)
 	if err != nil {
@@ -464,6 +508,7 @@ func updateClient(ctx context.Context, db execQuerier, tables tableNames, client
 	return nil
 }
 
+// listClients returns all client payloads ordered by id.
 func listClients(ctx context.Context, db execQuerier, tables tableNames) ([]domain.Client, error) {
 	rows, err := db.QueryContext(ctx, fmt.Sprintf(`SELECT payload FROM %s ORDER BY id`, tables.clients))
 	if err != nil {
@@ -488,7 +533,8 @@ func listClients(ctx context.Context, db execQuerier, tables tableNames) ([]doma
 	return out, rows.Err()
 }
 
-func createSession(ctx context.Context, db execQuerier, tables tableNames, session domain.Session) error {
+// createSession stores one verifier-side session payload.
+func createSession(ctx context.Context, db execQuerier, tables tableNames, session domain.StoredSession) error {
 	payload, err := json.Marshal(session)
 	if err != nil {
 		return fmt.Errorf("marshal session: %w", err)
@@ -500,23 +546,25 @@ func createSession(ctx context.Context, db execQuerier, tables tableNames, sessi
 	return err
 }
 
-func getSession(ctx context.Context, db execQuerier, tables tableNames, id string) (domain.Session, error) {
+// getSession loads one verifier-side session payload.
+func getSession(ctx context.Context, db execQuerier, tables tableNames, id string) (domain.StoredSession, error) {
 	var payload []byte
 	err := db.QueryRowContext(ctx, fmt.Sprintf(`SELECT payload FROM %s WHERE id = ?`, tables.sessions), strings.TrimSpace(id)).Scan(&payload)
 	if errors.Is(err, sql.ErrNoRows) {
-		return domain.Session{}, domain.ErrSessionNotFound
+		return domain.StoredSession{}, domain.ErrSessionNotFound
 	}
 	if err != nil {
-		return domain.Session{}, err
+		return domain.StoredSession{}, err
 	}
-	var session domain.Session
+	var session domain.StoredSession
 	if err := json.Unmarshal(payload, &session); err != nil {
-		return domain.Session{}, fmt.Errorf("decode session: %w", err)
+		return domain.StoredSession{}, fmt.Errorf("decode session: %w", err)
 	}
 	return session, nil
 }
 
-func updateSession(ctx context.Context, db execQuerier, tables tableNames, session domain.Session) error {
+// updateSession updates one verifier-side session payload.
+func updateSession(ctx context.Context, db execQuerier, tables tableNames, session domain.StoredSession) error {
 	payload, err := json.Marshal(session)
 	if err != nil {
 		return fmt.Errorf("marshal session: %w", err)
@@ -535,7 +583,8 @@ func updateSession(ctx context.Context, db execQuerier, tables tableNames, sessi
 	return nil
 }
 
-func listSessions(ctx context.Context, db execQuerier, tables tableNames) ([]domain.Session, error) {
+// listSessions returns all verifier-side session payloads ordered by id.
+func listSessions(ctx context.Context, db execQuerier, tables tableNames) ([]domain.StoredSession, error) {
 	rows, err := db.QueryContext(ctx, fmt.Sprintf(`SELECT payload FROM %s ORDER BY id`, tables.sessions))
 	if err != nil {
 		return nil, err
@@ -544,13 +593,13 @@ func listSessions(ctx context.Context, db execQuerier, tables tableNames) ([]dom
 		_ = rows.Close()
 	}()
 
-	var out []domain.Session
+	var out []domain.StoredSession
 	for rows.Next() {
 		var payload []byte
 		if err := rows.Scan(&payload); err != nil {
 			return nil, err
 		}
-		var session domain.Session
+		var session domain.StoredSession
 		if err := json.Unmarshal(payload, &session); err != nil {
 			return nil, err
 		}
@@ -559,6 +608,7 @@ func listSessions(ctx context.Context, db execQuerier, tables tableNames) ([]dom
 	return out, rows.Err()
 }
 
+// replaceRules replaces the entire persisted rule set.
 func replaceRules(ctx context.Context, db execQuerier, tables tableNames, rules []domain.Rule) error {
 	if _, err := db.ExecContext(ctx, fmt.Sprintf(`DELETE FROM %s`, tables.rules)); err != nil {
 		return err
@@ -575,6 +625,7 @@ func replaceRules(ctx context.Context, db execQuerier, tables tableNames, rules 
 	return nil
 }
 
+// listRules returns all persisted rules ordered by priority.
 func listRules(ctx context.Context, db execQuerier, tables tableNames) ([]domain.Rule, error) {
 	rows, err := db.QueryContext(ctx, fmt.Sprintf(`SELECT payload FROM %s ORDER BY priority DESC, id ASC`, tables.rules))
 	if err != nil {
@@ -599,6 +650,7 @@ func listRules(ctx context.Context, db execQuerier, tables tableNames) ([]domain
 	return out, rows.Err()
 }
 
+// createGrant stores one grant payload.
 func createGrant(ctx context.Context, db execQuerier, tables tableNames, grant domain.Grant) error {
 	payload, err := json.Marshal(grant)
 	if err != nil {
@@ -623,6 +675,7 @@ func createGrant(ctx context.Context, db execQuerier, tables tableNames, grant d
 	return err
 }
 
+// getGrant loads one grant payload.
 func getGrant(ctx context.Context, db execQuerier, tables tableNames, id string) (domain.Grant, error) {
 	var payload []byte
 	err := db.QueryRowContext(ctx, fmt.Sprintf(`SELECT payload FROM %s WHERE id = ?`, tables.grants), strings.TrimSpace(id)).Scan(&payload)
@@ -639,6 +692,7 @@ func getGrant(ctx context.Context, db execQuerier, tables tableNames, id string)
 	return grant, nil
 }
 
+// updateGrant updates one grant payload.
 func updateGrant(ctx context.Context, db execQuerier, tables tableNames, grant domain.Grant) error {
 	payload, err := json.Marshal(grant)
 	if err != nil {
@@ -658,6 +712,7 @@ func updateGrant(ctx context.Context, db execQuerier, tables tableNames, grant d
 	return nil
 }
 
+// findGrant returns the newest matching persisted grant.
 func findGrant(ctx context.Context, db execQuerier, tables tableNames, query domain.GrantQuery) (domain.Grant, error) {
 	row := db.QueryRowContext(ctx, fmt.Sprintf(`SELECT payload FROM %s WHERE principal_id = ? AND client_id = ? AND action = ? AND resource_namespace = ? AND resource_type = ? AND resource_id = ? AND fingerprint = ? AND state = ? ORDER BY created_at DESC, id DESC LIMIT 1`, tables.grants),
 		query.PrincipalID,
@@ -682,6 +737,7 @@ func findGrant(ctx context.Context, db execQuerier, tables tableNames, query dom
 	return grant, nil
 }
 
+// listGrants returns all persisted grants ordered by creation time.
 func listGrants(ctx context.Context, db execQuerier, tables tableNames) ([]domain.Grant, error) {
 	rows, err := db.QueryContext(ctx, fmt.Sprintf(`SELECT payload FROM %s ORDER BY created_at ASC, id ASC`, tables.grants))
 	if err != nil {
@@ -706,6 +762,7 @@ func listGrants(ctx context.Context, db execQuerier, tables tableNames) ([]domai
 	return out, rows.Err()
 }
 
+// appendAuditEvent stores one audit event payload.
 func appendAuditEvent(ctx context.Context, db execQuerier, tables tableNames, event domain.AuditEvent) error {
 	payload, err := json.Marshal(event)
 	if err != nil {
@@ -726,6 +783,7 @@ func appendAuditEvent(ctx context.Context, db execQuerier, tables tableNames, ev
 	return err
 }
 
+// listAuditEvents returns persisted audit events that match one filter.
 func listAuditEvents(ctx context.Context, db execQuerier, tables tableNames, filter domain.AuditFilter) ([]domain.AuditEvent, error) {
 	var (
 		builder strings.Builder
@@ -776,25 +834,91 @@ func listAuditEvents(ctx context.Context, db execQuerier, tables tableNames, fil
 	return out, rows.Err()
 }
 
+// migrate upgrades the SQLite schema to the current adapter version.
 func (s *Store) migrate(ctx context.Context) error {
-	statements := []string{
-		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (id TEXT PRIMARY KEY, payload BLOB NOT NULL)`, s.tables.principals),
-		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (id TEXT PRIMARY KEY, payload BLOB NOT NULL)`, s.tables.clients),
-		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (id TEXT PRIMARY KEY, principal_id TEXT NOT NULL, client_id TEXT NOT NULL, expires_at TEXT NOT NULL, payload BLOB NOT NULL)`, s.tables.sessions),
-		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (id TEXT PRIMARY KEY, priority INTEGER NOT NULL, payload BLOB NOT NULL)`, s.tables.rules),
-		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (id TEXT PRIMARY KEY, principal_id TEXT NOT NULL, client_id TEXT NOT NULL, action TEXT NOT NULL, resource_namespace TEXT NOT NULL, resource_type TEXT NOT NULL, resource_id TEXT NOT NULL, fingerprint TEXT NOT NULL, state TEXT NOT NULL, created_at TEXT NOT NULL, payload BLOB NOT NULL)`, s.tables.grants),
-		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (id TEXT PRIMARY KEY, occurred_at TEXT NOT NULL, principal_id TEXT, client_id TEXT, session_id TEXT, event_type TEXT NOT NULL, payload BLOB NOT NULL)`, s.tables.auditEvents),
-		fmt.Sprintf(`CREATE INDEX IF NOT EXISTS %s_lookup_idx ON %s (principal_id, client_id, action, resource_namespace, resource_type, resource_id, fingerprint, state, created_at DESC)`, s.tables.grants, s.tables.grants),
-		fmt.Sprintf(`CREATE INDEX IF NOT EXISTS %s_time_idx ON %s (occurred_at ASC, id ASC)`, s.tables.auditEvents, s.tables.auditEvents),
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin sqlite migration tx: %w", err)
 	}
+	defer func() {
+		_ = tx.Rollback()
+	}()
+
+	if _, err := tx.ExecContext(ctx, fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (version INTEGER NOT NULL)`, s.tables.schemaMigrations)); err != nil {
+		return fmt.Errorf("ensure sqlite schema table: %w", err)
+	}
+
+	version, err := currentVersion(ctx, tx, s.tables)
+	if err != nil {
+		return err
+	}
+	for version < currentSchemaVersion {
+		version++
+		if err := applyMigration(ctx, tx, s.tables, version); err != nil {
+			return err
+		}
+		if err := setVersion(ctx, tx, s.tables, version); err != nil {
+			return err
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit sqlite migration tx: %w", err)
+	}
+	return nil
+}
+
+// currentVersion returns the recorded schema version for one SQLite repository.
+func currentVersion(ctx context.Context, db execQuerier, tables tableNames) (int, error) {
+	row := db.QueryRowContext(ctx, fmt.Sprintf(`SELECT version FROM %s LIMIT 1`, tables.schemaMigrations))
+	var version int
+	if err := row.Scan(&version); errors.Is(err, sql.ErrNoRows) {
+		return 0, nil
+	} else if err != nil {
+		return 0, fmt.Errorf("load sqlite schema version: %w", err)
+	}
+	return version, nil
+}
+
+// applyMigration applies one numbered SQLite schema migration.
+func applyMigration(ctx context.Context, db execQuerier, tables tableNames, version int) error {
+	var statements []string
+	switch version {
+	case 1:
+		statements = []string{
+			fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (id TEXT PRIMARY KEY, payload BLOB NOT NULL)`, tables.principals),
+			fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (id TEXT PRIMARY KEY, payload BLOB NOT NULL)`, tables.clients),
+			fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (id TEXT PRIMARY KEY, principal_id TEXT NOT NULL, client_id TEXT NOT NULL, expires_at TEXT NOT NULL, payload BLOB NOT NULL)`, tables.sessions),
+			fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (id TEXT PRIMARY KEY, priority INTEGER NOT NULL, payload BLOB NOT NULL)`, tables.rules),
+			fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (id TEXT PRIMARY KEY, principal_id TEXT NOT NULL, client_id TEXT NOT NULL, action TEXT NOT NULL, resource_namespace TEXT NOT NULL, resource_type TEXT NOT NULL, resource_id TEXT NOT NULL, fingerprint TEXT NOT NULL, state TEXT NOT NULL, created_at TEXT NOT NULL, payload BLOB NOT NULL)`, tables.grants),
+			fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (id TEXT PRIMARY KEY, occurred_at TEXT NOT NULL, principal_id TEXT, client_id TEXT, session_id TEXT, event_type TEXT NOT NULL, payload BLOB NOT NULL)`, tables.auditEvents),
+			fmt.Sprintf(`CREATE INDEX IF NOT EXISTS %s_lookup_idx ON %s (principal_id, client_id, action, resource_namespace, resource_type, resource_id, fingerprint, state, created_at DESC)`, tables.grants, tables.grants),
+			fmt.Sprintf(`CREATE INDEX IF NOT EXISTS %s_time_idx ON %s (occurred_at ASC, id ASC)`, tables.auditEvents, tables.auditEvents),
+		}
+	default:
+		return fmt.Errorf("apply sqlite migration version %d: %w", version, domain.ErrInvalidConfig)
+	}
+
 	for _, statement := range statements {
-		if _, err := s.db.ExecContext(ctx, statement); err != nil {
-			return fmt.Errorf("apply sqlite migration %q: %w", statement, err)
+		if _, err := db.ExecContext(ctx, statement); err != nil {
+			return fmt.Errorf("apply sqlite migration version %d statement %q: %w", version, statement, err)
 		}
 	}
 	return nil
 }
 
+// setVersion records one applied SQLite schema version.
+func setVersion(ctx context.Context, db execQuerier, tables tableNames, version int) error {
+	if _, err := db.ExecContext(ctx, fmt.Sprintf(`DELETE FROM %s`, tables.schemaMigrations)); err != nil {
+		return fmt.Errorf("clear sqlite schema version: %w", err)
+	}
+	if _, err := db.ExecContext(ctx, fmt.Sprintf(`INSERT INTO %s (version) VALUES (?)`, tables.schemaMigrations), version); err != nil {
+		return fmt.Errorf("store sqlite schema version %d: %w", version, err)
+	}
+	return nil
+}
+
+// isUniqueErr reports whether one SQLite error represents a uniqueness violation.
 func isUniqueErr(err error) bool {
 	if err == nil {
 		return false

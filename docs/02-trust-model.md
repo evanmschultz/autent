@@ -22,6 +22,8 @@ The store keeps:
 
 `secret_hash` is verifier-side state.
 It should not be treated as caller-facing API.
+The service API should expose caller-safe session views rather than raw stored verifier state.
+At lower adapter boundaries, verifier-side state should be explicit, for example via a stored-session type rather than a plain caller-facing session type.
 
 ## Orchestrators and Subagents
 

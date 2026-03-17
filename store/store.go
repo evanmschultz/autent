@@ -25,10 +25,10 @@ type ClientStore interface {
 
 // SessionStore persists sessions.
 type SessionStore interface {
-	CreateSession(ctx context.Context, session domain.Session) error
-	GetSession(ctx context.Context, id string) (domain.Session, error)
-	UpdateSession(ctx context.Context, session domain.Session) error
-	ListSessions(ctx context.Context) ([]domain.Session, error)
+	CreateSession(ctx context.Context, session domain.StoredSession) error
+	GetSession(ctx context.Context, id string) (domain.StoredSession, error)
+	UpdateSession(ctx context.Context, session domain.StoredSession) error
+	ListSessions(ctx context.Context) ([]domain.StoredSession, error)
 }
 
 // PolicyStore persists authorization rules.
