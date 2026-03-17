@@ -2,7 +2,7 @@
 
 `autent` is a small Go auth library for agentic systems.
 
-Autent, meaning to "authentic" in Swedish. The name is an anglo-styled shortening of `autentisering` meaning "authentication" as auth is to authentication in English.
+The name is `autent`: Swedish-flavored branding close to "authentic" and a deliberately anglicized shortening inspired by `autentisering`, meaning "authentication".
 
 `autent` is meant to be embedded as a Go module inside another Go project.
 It is not an HTTP server, not an MCP server, and not a standalone auth daemon by default.
@@ -89,6 +89,8 @@ Recommended defaults:
 - explicit grants
 - synchronous audit
 - library-first embedding
+
+For subagent workflows, the recommended pattern is to issue a short-lived delegated session, let the subagent use it for one bounded task, and have the embedding app call `RevokeSession` when the subagent reports completion. Session expiry remains the fallback if explicit revoke never happens.
 
 ## Local Commands
 

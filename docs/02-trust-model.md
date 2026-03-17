@@ -40,6 +40,43 @@ Safer patterns are:
 2. delegated access
    A subagent gets its own bounded session or grant scoped to its work.
 
+## Recommended Subagent Session Flow
+
+For delegated access, the recommended workflow is:
+
+1. the embedding application or orchestrator issues a short-lived subagent session
+2. the subagent uses that session only for the bounded task it was assigned
+3. when the subagent reports "done" or "failed", the embedding application calls `RevokeSession`
+4. if the explicit revoke never happens, the short TTL still expires the session
+
+`autent` does not need a special `CompleteSession` API for this.
+`RevokeSession` is the correct auth primitive, and the embedding application owns the workflow message that means "done".
+
+Example shape:
+
+```go
+issued, err := service.IssueSession(ctx, autent.IssueSessionInput{
+    PrincipalID: "agent-subtask-1",
+    ClientID:    "agent-runner",
+    TTL:         15 * time.Minute,
+})
+if err != nil {
+    return err
+}
+
+// Hand issued.Session.ID and issued.Secret to the subagent runtime.
+
+// Later, when the orchestrator receives a "done" callback from the subagent:
+if _, err := service.RevokeSession(ctx, issued.Session.ID, "subagent_completed"); err != nil {
+    return err
+}
+```
+
+This keeps the boundary clean:
+
+- `autent` owns session issuance, validation, expiry, and revocation
+- the embedding application owns agent workflow messages and completion semantics
+
 Patterns to avoid by default:
 
 - giving every subagent the same long-lived root session secret
