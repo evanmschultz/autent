@@ -2,8 +2,7 @@
 
 `autent` is a small Go auth library for agentic systems.
 
-The name is `autent`, not `authent`.
-It is Swedish-flavored branding: close to "authentic" and also a slightly cheeky shortening inspired by `autentisering` ("authentication").
+Autent, meaning to "authentic" in Swedish. The name is an anglo-styled shortening of `autentisering` meaning "authentication" as auth is to authentication in English.
 
 `autent` is meant to be embedded as a Go module inside another Go project.
 It is not an HTTP server, not an MCP server, and not a standalone auth daemon by default.
@@ -55,7 +54,6 @@ Current packages:
 - `github.com/evanmschultz/autent/domain`
 - `github.com/evanmschultz/autent/store`
 - `github.com/evanmschultz/autent/token`
-- `github.com/evanmschultz/autent/audit`
 - `github.com/evanmschultz/autent/inmem`
 - `github.com/evanmschultz/autent/sqlite`
 
@@ -66,7 +64,6 @@ Layering:
 - `domain`: pure types, invariants, matching logic, typed errors
 - `app`: use-cases and orchestration over ports
 - `store` / `token`: primary adapter contracts
-- `audit`: reserved namespace for audit-facing docs and future sink helpers
 - `inmem` / `sqlite`: concrete adapters
 
 ## Current MVP Scope
@@ -231,13 +228,10 @@ Detailed docs live under [`docs/`](./docs):
 - [Human Testing](./docs/04-human-testing.md)
 - [blick Integration Notes](./docs/05-blick-integration.md)
 - [tillsyn Integration Notes](./docs/06-tillsyn-integration.md)
-- [MVP Completion Notes](./docs/07-mvp-completion.md)
 
 Contributor and process guidance:
 
 - [CONTRIBUTING.md](./CONTRIBUTING.md)
-- [PLAN.md](./PLAN.md)
-- [WORKLOG.md](./WORKLOG.md)
 - [AGENTS.md](./AGENTS.md)
 
 ## License

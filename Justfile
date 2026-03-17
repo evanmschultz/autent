@@ -5,7 +5,6 @@ set windows-shell := ["C:/Program Files/Git/bin/bash.exe", "-eu", "-o", "pipefai
 verify-bootstrap:
   @test -f AGENTS.md
   @test -f README.md
-  @test -f PLAN.md
   @test -f Justfile
   @test -f .goreleaser.yml
   @test -f .github/workflows/ci.yml
@@ -89,8 +88,11 @@ build:
   elif [ ! -d ./cmd/autent-example ]; then \
     echo "skip build: ./cmd/autent-example not present"; \
   else \
-    mkdir -p ./bin; \
-    GOFLAGS="${GOFLAGS:+$GOFLAGS }-buildvcs=false" go build -o ./bin/autent-example ./cmd/autent-example; \
+    tmp_bin="$(mktemp -t autent-example.XXXXXX)"; \
+    trap 'rm -f "$tmp_bin"' EXIT; \
+    GOFLAGS="${GOFLAGS:+$GOFLAGS }-buildvcs=false" go build -o "$tmp_bin" ./cmd/autent-example; \
+    rm -f "$tmp_bin"; \
+    trap - EXIT; \
   fi
 
 run:

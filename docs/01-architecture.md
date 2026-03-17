@@ -55,7 +55,6 @@ The adapter contracts live in:
 
 - `store`
 - `token`
-- `audit` as a reserved namespace for audit-facing docs and future sink helpers
 
 `store` and `token` define the current extension points needed by the library without forcing a storage or runtime model.
 

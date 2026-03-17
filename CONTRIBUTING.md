@@ -20,14 +20,11 @@ Main package responsibilities:
 - `domain`: pure types, invariants, matchers, typed errors
 - `app`: use-cases and orchestration over ports
 - `store`, `token`: shared contracts
-- `audit`: reserved namespace for audit-facing docs and future sink helpers
 - `inmem`, `sqlite`: concrete adapters
 
 User-facing docs live in:
 
 - `README.md`
-- `PLAN.md`
-- `WORKLOG.md`
 - `docs/`
 
 ## Local Setup
@@ -63,12 +60,10 @@ When behavior changes, update the docs in the same change.
 At minimum, consider whether the change affects:
 
 - `README.md`
-- `PLAN.md`
 - `docs/01-architecture.md`
 - `docs/02-trust-model.md`
 - `docs/03-sqlite-integration.md`
 - `docs/04-human-testing.md`
-- `docs/07-mvp-completion.md`
 
 ## CI and Release Expectations
 

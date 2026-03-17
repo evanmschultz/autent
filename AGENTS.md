@@ -50,7 +50,6 @@ Use these core terms consistently in code and docs:
 - `policy`
 - `grant`
 - `decision`
-- `audit`
 
 Do not rename `grant` to consumer-specific terms in core packages.
 Do not move `blick` `access profile` or `tillsyn` `capability lease` terminology into `autent` core APIs unless a dedicated consumer integration adapter explicitly needs translation.
@@ -61,7 +60,7 @@ Do not move `blick` `access profile` or `tillsyn` `capability lease` terminology
 
 - `domain`: pure types, invariants, matching logic, and typed errors
 - `app`: use-cases and orchestration over ports
-- `adapters`: storage, tokens, clocks, randomness, audit sinks
+- `adapters`: storage, tokens, clocks, randomness, and other edge implementations
 - `integration`: small optional helpers for consumers such as HTTP or MCP context wiring
 
 Rules:
@@ -154,7 +153,6 @@ Before handoff, summarize:
 - Worktrees are supported but not required
 - Run commands from the exact repository path requested by the user
 - Do not push to remotes unless the user explicitly asks
-- The active design source of truth for this MVP phase is `PLAN.md`
 - The `.tmp/` directory is local research scratch space. Do not edit cloned sibling repos under `.tmp/` unless the user explicitly asks for changes there
 
 ## 8) Current Direction
