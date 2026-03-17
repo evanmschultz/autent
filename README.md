@@ -45,6 +45,11 @@ Local auth code in agent systems tends to decay into:
 
 `autent` exists to give `blick`, `tillsyn`, and similar Go projects a reusable auth foundation without forcing them into a framework.
 
+For operator or admin views, `autent` can list auth-owned records such as sessions, grants, and audit events.
+Generic filters exist today for sessions and audit events, and consumers can layer additional narrowing on top where needed.
+Embedding apps should layer any project, workspace, orchestrator, or tenant-specific filtering on top of those generic fields rather than pushing consumer semantics into `autent`.
+Those list surfaces are still privileged operator capabilities; the embedding app should authorize access to them explicitly.
+
 ## Package Shape
 
 Current packages:
@@ -73,6 +78,7 @@ Implemented:
 - principal and client registration
 - principal and client enable or disable flows
 - opaque session issue, validate, and revoke
+- caller-safe session listing with generic filters
 - caller-safe session views at the service boundary
 - rule-based authorization with explicit deny precedence
 - explicit grant request, approve, deny, and cancel flows
@@ -106,6 +112,10 @@ just ci
 - dedicated `autent.db` style file for auth state
 - shared application database with a configurable table prefix
 
+`autent` intentionally does not choose that storage topology for the embedding app.
+`blick`, `tillsyn`, or any other consumer should decide whether auth state is per workspace, per project, per app instance, or globally shared.
+If that choice affects user-visible operator views, confirm it with the user before locking it in.
+
 Examples:
 
 ```go
@@ -137,6 +147,7 @@ go run ./cmd/autent-example principal create --db "$DB" --id user-1 --type user 
 go run ./cmd/autent-example client create --db "$DB" --id cli-1 --type cli --name "CLI"
 go run ./cmd/autent-example policy load-demo --db "$DB"
 go run ./cmd/autent-example session issue --db "$DB" --principal user-1 --client cli-1
+go run ./cmd/autent-example session list --db "$DB" --state active
 ```
 
 Take the returned `session_id` and `session_secret`, then:
@@ -220,6 +231,17 @@ Expected behavior:
 - one approved grant allows one retry, then requires a new grant
 - the post-revoke `authz check` returns `invalid`
 
+## Roadmap
+
+Near-term follow-ups after the MVP:
+
+- refine the low-level session store shape if custom repository implementations make the current mixed verifier/query boundary awkward
+- add more DB-pushed filtering only if real consumers need larger shared auth stores
+- consider carefully bounded metadata-aware querying only if the query shape proves generic across multiple embedders
+- expand operator/admin guidance further if `blick`, `tillsyn`, or other consumers grow richer operator surfaces
+
+These are refinement items, not missing core features.
+
 ## Documentation
 
 Detailed docs live under [`docs/`](./docs):
@@ -230,6 +252,8 @@ Detailed docs live under [`docs/`](./docs):
 - [Human Testing](./docs/04-human-testing.md)
 - [blick Integration Notes](./docs/05-blick-integration.md)
 - [tillsyn Integration Notes](./docs/06-tillsyn-integration.md)
+- [Operator And Admin Patterns](./docs/07-operator-admin-patterns.md)
+- [Abstraction Follow-Ups](./docs/08-abstraction-followups.md)
 
 Contributor and process guidance:
 

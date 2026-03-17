@@ -46,6 +46,31 @@ type SessionView struct {
 	Metadata         map[string]string
 }
 
+// SessionState identifies a caller-facing session lifecycle state for listing filters.
+type SessionState string
+
+const (
+	// SessionStateAny returns all sessions regardless of lifecycle state.
+	SessionStateAny SessionState = ""
+	// SessionStateActive returns sessions that are neither revoked nor expired.
+	SessionStateActive SessionState = "active"
+	// SessionStateRevoked returns sessions that have been explicitly revoked.
+	SessionStateRevoked SessionState = "revoked"
+	// SessionStateExpired returns sessions that have expired without being revoked.
+	SessionStateExpired SessionState = "expired"
+)
+
+// SessionFilter narrows caller-safe session listing queries.
+type SessionFilter struct {
+	SessionID    string
+	PrincipalID  string
+	ClientID     string
+	State        SessionState
+	IssuedAfter  time.Time
+	IssuedBefore time.Time
+	Limit        int
+}
+
 // IssuedSession bundles a persisted session view with the returned opaque secret.
 type IssuedSession struct {
 	Session SessionView
@@ -131,8 +156,8 @@ func defaultIDGenerator() string {
 	return "autent-" + hex.EncodeToString(buf)
 }
 
-// newSessionView removes verifier-side material from one stored session.
-func newSessionView(session domain.StoredSession) SessionView {
+// newSessionView converts one caller-safe domain session into the public service view.
+func newSessionView(session domain.Session) SessionView {
 	return SessionView{
 		ID:               session.ID,
 		PrincipalID:      session.PrincipalID,
@@ -240,6 +265,31 @@ func (s *Service) ListPrincipals(ctx context.Context) ([]domain.Principal, error
 // ListClients returns all stored clients.
 func (s *Service) ListClients(ctx context.Context) ([]domain.Client, error) {
 	return s.repo.ListClients(ctx)
+}
+
+// ListSessions returns caller-safe session views filtered by the provided generic fields.
+func (s *Service) ListSessions(ctx context.Context, filter SessionFilter) ([]SessionView, error) {
+	if err := filter.Validate(); err != nil {
+		return nil, err
+	}
+
+	sessions, err := s.repo.ListSessions(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	now := s.clock()
+	views := make([]SessionView, 0, len(sessions))
+	for _, session := range sessions {
+		if !filter.matches(session, now) {
+			continue
+		}
+		views = append(views, newSessionView(session))
+		if filter.Limit > 0 && len(views) >= filter.Limit {
+			break
+		}
+	}
+	return views, nil
 }
 
 // UpdatePrincipalStatus changes one principal status.
@@ -424,7 +474,7 @@ func (s *Service) IssueSession(ctx context.Context, in IssueSessionInput) (Issue
 	if err != nil {
 		return IssuedSession{}, err
 	}
-	return IssuedSession{Session: newSessionView(session), Secret: secret}, nil
+	return IssuedSession{Session: newSessionView(session.View()), Secret: secret}, nil
 }
 
 // ValidateSession verifies a presented session id and secret.
@@ -435,7 +485,7 @@ func (s *Service) ValidateSession(ctx context.Context, sessionID, secret string)
 		if err != nil {
 			return err
 		}
-		if !s.secrets.Verify(secret, session.SecretHash) {
+		if !s.secrets.Verify(secret, session.SecretHash()) {
 			return domain.ErrInvalidSessionSecret
 		}
 		if err := session.CanUse(s.clock()); err != nil {
@@ -472,7 +522,7 @@ func (s *Service) ValidateSession(ctx context.Context, sessionID, secret string)
 			return err
 		}
 		validated = ValidatedSession{
-			Session:   newSessionView(session),
+			Session:   newSessionView(session.View()),
 			Principal: principal,
 			Client:    client,
 		}
@@ -516,7 +566,7 @@ func (s *Service) RevokeSession(ctx context.Context, sessionID, reason string) (
 	if err != nil {
 		return SessionView{}, err
 	}
-	return newSessionView(session), nil
+	return newSessionView(session.View()), nil
 }
 
 // Authorize validates the session and evaluates a request against policy and grants.
@@ -859,6 +909,53 @@ func (s *Service) appendAuditTx(ctx context.Context, repo store.Repository, even
 		return domain.AuditEvent{}, err
 	}
 	return event, nil
+}
+
+// Validate reports whether the session listing filter is internally coherent.
+func (f SessionFilter) Validate() error {
+	switch f.State {
+	case SessionStateAny, SessionStateActive, SessionStateRevoked, SessionStateExpired:
+	default:
+		return fmt.Errorf("session state %q: %w", f.State, domain.ErrInvalidFilter)
+	}
+	if f.Limit < 0 {
+		return fmt.Errorf("session limit %d: %w", f.Limit, domain.ErrInvalidFilter)
+	}
+	if !f.IssuedAfter.IsZero() && !f.IssuedBefore.IsZero() && f.IssuedAfter.UTC().After(f.IssuedBefore.UTC()) {
+		return fmt.Errorf("issued range: %w", domain.ErrInvalidFilter)
+	}
+	return nil
+}
+
+// matches reports whether one caller-safe session matches the provided listing filter.
+func (f SessionFilter) matches(session domain.Session, now time.Time) bool {
+	if id := strings.TrimSpace(f.SessionID); id != "" && session.ID != id {
+		return false
+	}
+	if principalID := strings.TrimSpace(f.PrincipalID); principalID != "" && session.PrincipalID != principalID {
+		return false
+	}
+	if clientID := strings.TrimSpace(f.ClientID); clientID != "" && session.ClientID != clientID {
+		return false
+	}
+	if !f.IssuedAfter.IsZero() && session.IssuedAt.UTC().Before(f.IssuedAfter.UTC()) {
+		return false
+	}
+	if !f.IssuedBefore.IsZero() && session.IssuedAt.UTC().After(f.IssuedBefore.UTC()) {
+		return false
+	}
+	switch f.State {
+	case SessionStateAny:
+		return true
+	case SessionStateActive:
+		return !session.IsRevoked() && !session.IsExpired(now)
+	case SessionStateRevoked:
+		return session.IsRevoked()
+	case SessionStateExpired:
+		return !session.IsRevoked() && session.IsExpired(now)
+	default:
+		return false
+	}
 }
 
 // recordDecision appends one authz decision audit event and returns the final decision.

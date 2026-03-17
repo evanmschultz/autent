@@ -247,10 +247,10 @@ func runPolicy(args []string, out io.Writer) error {
 	})
 }
 
-// runSession handles `session issue` and `session revoke`.
+// runSession handles `session issue`, `session list`, and `session revoke`.
 func runSession(args []string, out io.Writer) error {
 	if len(args) == 0 {
-		return errors.New("usage: session issue|revoke")
+		return errors.New("usage: session issue|list|revoke")
 	}
 	switch args[0] {
 	case "issue":
@@ -285,6 +285,35 @@ func runSession(args []string, out io.Writer) error {
 			"issued_at":      issued.Session.IssuedAt,
 			"expires_at":     issued.Session.ExpiresAt,
 		})
+	case "list":
+		fs := flag.NewFlagSet("session list", flag.ContinueOnError)
+		fs.SetOutput(io.Discard)
+		sqliteConfig := bindSQLiteFlags(fs)
+		sessionID := fs.String("session", "", "session id")
+		principalID := fs.String("principal", "", "principal id")
+		clientID := fs.String("client", "", "client id")
+		state := fs.String("state", "", "session state filter: active, revoked, expired")
+		limit := fs.Int("limit", 0, "max sessions to return")
+		if err := fs.Parse(args[1:]); err != nil {
+			return err
+		}
+		service, cleanup, err := openService(*sqliteConfig.dbPath, *sqliteConfig.prefix)
+		if err != nil {
+			return err
+		}
+		defer cleanup()
+
+		sessions, err := service.ListSessions(context.Background(), app.SessionFilter{
+			SessionID:   *sessionID,
+			PrincipalID: *principalID,
+			ClientID:    *clientID,
+			State:       app.SessionState(*state),
+			Limit:       *limit,
+		})
+		if err != nil {
+			return err
+		}
+		return writeJSON(out, redactSessions(sessions))
 	case "revoke":
 		fs := flag.NewFlagSet("session revoke", flag.ContinueOnError)
 		fs.SetOutput(io.Discard)
@@ -306,7 +335,7 @@ func runSession(args []string, out io.Writer) error {
 		}
 		return writeJSON(out, redactSession(session))
 	default:
-		return errors.New("usage: session issue|revoke")
+		return errors.New("usage: session issue|list|revoke")
 	}
 }
 
@@ -611,6 +640,7 @@ func printUsage(out io.Writer) {
 	_, _ = fmt.Fprintln(out, "  client enable|disable --db <path> [--db-prefix autent_] --id <id> [--actor <id>] [--reason <reason>]")
 	_, _ = fmt.Fprintln(out, "  policy load-demo --db <path> [--db-prefix autent_]")
 	_, _ = fmt.Fprintln(out, "  session issue --db <path> [--db-prefix autent_] --principal <id> --client <id> [--ttl 8h]")
+	_, _ = fmt.Fprintln(out, "  session list --db <path> [--db-prefix autent_] [--session <id>] [--principal <id>] [--client <id>] [--state <active|revoked|expired>] [--limit <n>]")
 	_, _ = fmt.Fprintln(out, "  session revoke --db <path> [--db-prefix autent_] --session <id> [--reason <reason>]")
 	_, _ = fmt.Fprintln(out, "  authz check --db <path> [--db-prefix autent_] --session <id> --secret <secret> --action <action> --namespace <ns> --resource-type <type> --resource-id <id> [--context key=value,...]")
 	_, _ = fmt.Fprintln(out, "  grant request --db <path> [--db-prefix autent_] --session <id> --secret <secret> --action <action> --namespace <ns> --resource-type <type> --resource-id <id> [--context key=value,...] [--reason <reason>]")
@@ -618,6 +648,15 @@ func printUsage(out io.Writer) {
 	_, _ = fmt.Fprintln(out, "  grant deny --db <path> [--db-prefix autent_] --grant-id <id> --actor <actor> [--note <note>]")
 	_, _ = fmt.Fprintln(out, "  grant cancel --db <path> [--db-prefix autent_] --grant-id <id> [--actor <id>] [--note <note>]")
 	_, _ = fmt.Fprintln(out, "  audit list --db <path> [--db-prefix autent_] [--principal <id>] [--client <id>] [--session <id>] [--type <event>] [--limit <n>]")
+}
+
+// redactSessions converts caller-safe service session views into stable operator-facing JSON.
+func redactSessions(sessions []app.SessionView) []sessionView {
+	views := make([]sessionView, 0, len(sessions))
+	for _, session := range sessions {
+		views = append(views, redactSession(session))
+	}
+	return views
 }
 
 // writeJSON writes one value as indented JSON.

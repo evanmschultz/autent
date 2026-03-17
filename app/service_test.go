@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -284,6 +285,123 @@ func TestServiceAuthorizeGrantFlow(t *testing.T) {
 	}
 	if decision.Code != domain.DecisionGrantRequired {
 		t.Fatalf("decision.Code after redemption = %q, want %q", decision.Code, domain.DecisionGrantRequired)
+	}
+}
+
+// TestServiceListSessionsFilters verifies caller-safe session listing and generic filters.
+func TestServiceListSessionsFilters(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.March, 14, 12, 0, 0, 0, time.UTC)
+	clockNow := now
+	service := newTestService(t, func() time.Time { return clockNow })
+
+	principalOne, err := service.RegisterPrincipal(context.Background(), domain.PrincipalInput{
+		ID:          "principal-1",
+		Type:        domain.PrincipalTypeUser,
+		DisplayName: "User One",
+	})
+	if err != nil {
+		t.Fatalf("RegisterPrincipal(principal-1) error = %v", err)
+	}
+	principalTwo, err := service.RegisterPrincipal(context.Background(), domain.PrincipalInput{
+		ID:          "principal-2",
+		Type:        domain.PrincipalTypeUser,
+		DisplayName: "User Two",
+	})
+	if err != nil {
+		t.Fatalf("RegisterPrincipal(principal-2) error = %v", err)
+	}
+	clientOne, err := service.RegisterClient(context.Background(), domain.ClientInput{
+		ID:          "client-1",
+		DisplayName: "CLI One",
+		Type:        "cli",
+	})
+	if err != nil {
+		t.Fatalf("RegisterClient(client-1) error = %v", err)
+	}
+	clientTwo, err := service.RegisterClient(context.Background(), domain.ClientInput{
+		ID:          "client-2",
+		DisplayName: "CLI Two",
+		Type:        "cli",
+	})
+	if err != nil {
+		t.Fatalf("RegisterClient(client-2) error = %v", err)
+	}
+
+	activeSession, err := service.IssueSession(context.Background(), IssueSessionInput{
+		PrincipalID: principalOne.ID,
+		ClientID:    clientOne.ID,
+		TTL:         2 * time.Hour,
+	})
+	if err != nil {
+		t.Fatalf("IssueSession(active) error = %v", err)
+	}
+
+	clockNow = now.Add(5 * time.Minute)
+	revokedSession, err := service.IssueSession(context.Background(), IssueSessionInput{
+		PrincipalID: principalOne.ID,
+		ClientID:    clientTwo.ID,
+		TTL:         2 * time.Hour,
+	})
+	if err != nil {
+		t.Fatalf("IssueSession(revoked) error = %v", err)
+	}
+	if _, err := service.RevokeSession(context.Background(), revokedSession.Session.ID, "operator_done"); err != nil {
+		t.Fatalf("RevokeSession() error = %v", err)
+	}
+
+	clockNow = now.Add(10 * time.Minute)
+	expiredSession, err := service.IssueSession(context.Background(), IssueSessionInput{
+		PrincipalID: principalTwo.ID,
+		ClientID:    clientOne.ID,
+		TTL:         time.Minute,
+	})
+	if err != nil {
+		t.Fatalf("IssueSession(expired) error = %v", err)
+	}
+
+	clockNow = now.Add(20 * time.Minute)
+	activeSessions, err := service.ListSessions(context.Background(), SessionFilter{State: SessionStateActive})
+	if err != nil {
+		t.Fatalf("ListSessions(active) error = %v", err)
+	}
+	if len(activeSessions) != 1 || activeSessions[0].ID != activeSession.Session.ID {
+		t.Fatalf("activeSessions = %+v, want only %q", activeSessions, activeSession.Session.ID)
+	}
+
+	revokedSessions, err := service.ListSessions(context.Background(), SessionFilter{State: SessionStateRevoked})
+	if err != nil {
+		t.Fatalf("ListSessions(revoked) error = %v", err)
+	}
+	if len(revokedSessions) != 1 || revokedSessions[0].ID != revokedSession.Session.ID {
+		t.Fatalf("revokedSessions = %+v, want only %q", revokedSessions, revokedSession.Session.ID)
+	}
+
+	expiredSessions, err := service.ListSessions(context.Background(), SessionFilter{State: SessionStateExpired})
+	if err != nil {
+		t.Fatalf("ListSessions(expired) error = %v", err)
+	}
+	if len(expiredSessions) != 1 || expiredSessions[0].ID != expiredSession.Session.ID {
+		t.Fatalf("expiredSessions = %+v, want only %q", expiredSessions, expiredSession.Session.ID)
+	}
+
+	principalFiltered, err := service.ListSessions(context.Background(), SessionFilter{
+		PrincipalID: principalOne.ID,
+		Limit:       1,
+	})
+	if err != nil {
+		t.Fatalf("ListSessions(principal filter) error = %v", err)
+	}
+	if len(principalFiltered) != 1 {
+		t.Fatalf("len(principalFiltered) = %d, want 1", len(principalFiltered))
+	}
+	if principalFiltered[0].PrincipalID != principalOne.ID {
+		t.Fatalf("principalFiltered[0].PrincipalID = %q, want %q", principalFiltered[0].PrincipalID, principalOne.ID)
+	}
+
+	if _, err := service.ListSessions(context.Background(), SessionFilter{State: SessionState("bogus")}); !errors.Is(err, domain.ErrInvalidFilter) {
+		t.Fatalf("ListSessions(invalid filter) error = %v, want ErrInvalidFilter", err)
 	}
 }
 
@@ -719,11 +837,15 @@ func newTestService(t *testing.T, clock func() time.Time) *Service {
 func newServiceWithRepository(t *testing.T, repo store.Repository, clock func() time.Time) *Service {
 	t.Helper()
 
+	nextID := 0
 	service, err := NewService(Config{
-		Repository:  repo,
-		Secrets:     token.OpaqueSecretManager{},
-		Clock:       clock,
-		IDGenerator: func() string { return "generated-id" },
+		Repository: repo,
+		Secrets:    token.OpaqueSecretManager{},
+		Clock:      clock,
+		IDGenerator: func() string {
+			nextID++
+			return fmt.Sprintf("generated-id-%d", nextID)
+		},
 	})
 	if err != nil {
 		t.Fatalf("NewService() error = %v", err)

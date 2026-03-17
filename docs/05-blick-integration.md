@@ -35,6 +35,10 @@ Flow:
 4. `blick` asks `autent` for a decision
 5. `blick` maps the decision to runtime behavior
 
+For operator or admin views, `blick` can also use `autent` to list sessions, grants, and audit events.
+Generic filters exist today for sessions and audit events, and `blick` can apply its own project or orchestrator-specific filtering on top.
+`blick` should still treat those views as privileged operator capabilities and authorize them explicitly.
+
 ## Example Resource Mappings
 
 Examples for `blick`:
@@ -47,3 +51,15 @@ Examples for `blick`:
 
 `blick` is exactly the kind of project where auth and tool/runtime behavior can accidentally collapse into one thing.
 `autent` should prevent that by giving `blick` a reusable session/authz/grant/audit core without taking over MCP or wrapper semantics.
+
+## Storage and Listing Choices To Confirm
+
+Before wiring `blick` to `autent`, confirm these choices with the user:
+
+- whether auth state should live in a dedicated `autent` database or inside `blick`'s existing database
+- whether that storage should be scoped per workspace, per project, or shared more broadly
+- which operator-facing views should exist for active sessions, pending grants, and audit history
+
+`autent` should not choose those topology boundaries for `blick`.
+It should provide generic auth-owned list primitives plus generic filters where they make sense.
+`blick` should decide how those primitives map onto its own projects, workspaces, orchestrators, and tool surfaces.

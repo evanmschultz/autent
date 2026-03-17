@@ -192,8 +192,8 @@ func (s *Store) UpdateSession(ctx context.Context, session domain.StoredSession)
 	return updateSession(ctx, s.db, s.tables, session)
 }
 
-// ListSessions returns all stored verifier-side session records ordered by id.
-func (s *Store) ListSessions(ctx context.Context) ([]domain.StoredSession, error) {
+// ListSessions returns all caller-safe session metadata ordered by id.
+func (s *Store) ListSessions(ctx context.Context) ([]domain.Session, error) {
 	return listSessions(ctx, s.db, s.tables)
 }
 
@@ -320,8 +320,8 @@ func (s txStore) UpdateSession(ctx context.Context, session domain.StoredSession
 	return updateSession(ctx, s.tx, s.tables, session)
 }
 
-// ListSessions returns all verifier-side session records inside the transaction.
-func (s txStore) ListSessions(ctx context.Context) ([]domain.StoredSession, error) {
+// ListSessions returns all caller-safe session metadata inside the transaction.
+func (s txStore) ListSessions(ctx context.Context) ([]domain.Session, error) {
 	return listSessions(ctx, s.tx, s.tables)
 }
 
@@ -534,7 +534,7 @@ func listClients(ctx context.Context, db execQuerier, tables tableNames) ([]doma
 
 // createSession stores one verifier-side session payload.
 func createSession(ctx context.Context, db execQuerier, tables tableNames, session domain.StoredSession) error {
-	payload, err := json.Marshal(session)
+	payload, err := encodeStoredSession(session)
 	if err != nil {
 		return fmt.Errorf("marshal session: %w", err)
 	}
@@ -555,8 +555,8 @@ func getSession(ctx context.Context, db execQuerier, tables tableNames, id strin
 	if err != nil {
 		return domain.StoredSession{}, err
 	}
-	var session domain.StoredSession
-	if err := json.Unmarshal(payload, &session); err != nil {
+	session, err := decodeStoredSession(payload)
+	if err != nil {
 		return domain.StoredSession{}, fmt.Errorf("decode session: %w", err)
 	}
 	return session, nil
@@ -564,7 +564,7 @@ func getSession(ctx context.Context, db execQuerier, tables tableNames, id strin
 
 // updateSession updates one verifier-side session payload.
 func updateSession(ctx context.Context, db execQuerier, tables tableNames, session domain.StoredSession) error {
-	payload, err := json.Marshal(session)
+	payload, err := encodeStoredSession(session)
 	if err != nil {
 		return fmt.Errorf("marshal session: %w", err)
 	}
@@ -582,8 +582,8 @@ func updateSession(ctx context.Context, db execQuerier, tables tableNames, sessi
 	return nil
 }
 
-// listSessions returns all verifier-side session payloads ordered by id.
-func listSessions(ctx context.Context, db execQuerier, tables tableNames) ([]domain.StoredSession, error) {
+// listSessions returns all caller-safe session payloads ordered by id.
+func listSessions(ctx context.Context, db execQuerier, tables tableNames) ([]domain.Session, error) {
 	rows, err := db.QueryContext(ctx, fmt.Sprintf(`SELECT payload FROM %s ORDER BY id`, tables.sessions))
 	if err != nil {
 		return nil, err
@@ -592,19 +592,86 @@ func listSessions(ctx context.Context, db execQuerier, tables tableNames) ([]dom
 		_ = rows.Close()
 	}()
 
-	var out []domain.StoredSession
+	var out []domain.Session
 	for rows.Next() {
 		var payload []byte
 		if err := rows.Scan(&payload); err != nil {
 			return nil, err
 		}
-		var session domain.StoredSession
-		if err := json.Unmarshal(payload, &session); err != nil {
+		session, err := decodeStoredSession(payload)
+		if err != nil {
 			return nil, err
 		}
-		out = append(out, session)
+		out = append(out, session.View())
 	}
 	return out, rows.Err()
+}
+
+// encodeStoredSession serializes one verifier-side session record for SQLite persistence.
+func encodeStoredSession(session domain.StoredSession) ([]byte, error) {
+	type storedSessionJSON struct {
+		ID               string            `json:"ID"`
+		PrincipalID      string            `json:"PrincipalID"`
+		ClientID         string            `json:"ClientID"`
+		IssuedAt         time.Time         `json:"IssuedAt"`
+		ExpiresAt        time.Time         `json:"ExpiresAt"`
+		LastSeenAt       time.Time         `json:"LastSeenAt"`
+		RevokedAt        *time.Time        `json:"RevokedAt"`
+		RevocationReason string            `json:"RevocationReason"`
+		Metadata         map[string]string `json:"Metadata"`
+		SecretHash       []byte            `json:"SecretHash"`
+	}
+	return json.Marshal(storedSessionJSON{
+		ID:               session.ID,
+		PrincipalID:      session.PrincipalID,
+		ClientID:         session.ClientID,
+		IssuedAt:         session.IssuedAt,
+		ExpiresAt:        session.ExpiresAt,
+		LastSeenAt:       session.LastSeenAt,
+		RevokedAt:        session.RevokedAt,
+		RevocationReason: session.RevocationReason,
+		Metadata:         session.Metadata,
+		SecretHash:       session.SecretHash(),
+	})
+}
+
+// decodeStoredSession restores one verifier-side session record from SQLite persistence.
+func decodeStoredSession(payload []byte) (domain.StoredSession, error) {
+	type storedSessionJSON struct {
+		ID               string            `json:"ID"`
+		PrincipalID      string            `json:"PrincipalID"`
+		ClientID         string            `json:"ClientID"`
+		IssuedAt         time.Time         `json:"IssuedAt"`
+		ExpiresAt        time.Time         `json:"ExpiresAt"`
+		LastSeenAt       time.Time         `json:"LastSeenAt"`
+		RevokedAt        *time.Time        `json:"RevokedAt"`
+		RevocationReason string            `json:"RevocationReason"`
+		Metadata         map[string]string `json:"Metadata"`
+		SecretHash       []byte            `json:"SecretHash"`
+	}
+	var decoded storedSessionJSON
+	if err := json.Unmarshal(payload, &decoded); err != nil {
+		return domain.StoredSession{}, err
+	}
+	stored, err := domain.NewStoredSession(domain.StoredSessionInput{
+		ID:          decoded.ID,
+		PrincipalID: decoded.PrincipalID,
+		ClientID:    decoded.ClientID,
+		SecretHash:  decoded.SecretHash,
+		ExpiresAt:   decoded.ExpiresAt,
+		Metadata:    decoded.Metadata,
+	}, decoded.IssuedAt)
+	if err != nil {
+		return domain.StoredSession{}, err
+	}
+	stored.IssuedAt = decoded.IssuedAt
+	stored.LastSeenAt = decoded.LastSeenAt
+	if decoded.RevokedAt != nil {
+		ts := decoded.RevokedAt.UTC()
+		stored.RevokedAt = &ts
+	}
+	stored.RevocationReason = decoded.RevocationReason
+	return stored, nil
 }
 
 // replaceRules replaces the entire persisted rule set.

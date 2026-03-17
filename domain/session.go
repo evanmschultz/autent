@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"fmt"
 	"strings"
 	"time"
 )
@@ -31,7 +32,7 @@ type Session struct {
 // StoredSession stores verifier-side session state, including the hashed session secret.
 type StoredSession struct {
 	Session
-	SecretHash []byte
+	secretHash []byte
 }
 
 // View returns the caller-safe session metadata for one stored session record.
@@ -47,6 +48,31 @@ func (s StoredSession) View() Session {
 		RevocationReason: s.RevocationReason,
 		Metadata:         copyMap(s.Metadata),
 	}
+}
+
+// SecretHash returns a defensive copy of the verifier-side session secret hash.
+func (s StoredSession) SecretHash() []byte {
+	hash := make([]byte, len(s.secretHash))
+	copy(hash, s.secretHash)
+	return hash
+}
+
+// Clone returns a deep copy of the stored verifier-side session record.
+func (s StoredSession) Clone() StoredSession {
+	return StoredSession{
+		Session:    s.View(),
+		secretHash: s.SecretHash(),
+	}
+}
+
+// String returns a redacted string form of the stored session for safer logging.
+func (s StoredSession) String() string {
+	return fmt.Sprintf("StoredSession{Session:%+v, secretHash:<redacted>}", s.View())
+}
+
+// GoString returns a redacted Go-syntax-like representation of the stored session for safer debugging.
+func (s StoredSession) GoString() string {
+	return s.String()
 }
 
 // NewStoredSession validates and constructs one stored session record.
@@ -83,7 +109,7 @@ func NewStoredSession(in StoredSessionInput, now time.Time) (StoredSession, erro
 			LastSeenAt:  ts,
 			Metadata:    copyMap(in.Metadata),
 		},
-		SecretHash: secretHash,
+		secretHash: secretHash,
 	}, nil
 }
 

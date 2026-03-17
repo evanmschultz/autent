@@ -21,9 +21,10 @@ go run ./cmd/autent-example principal create --db "$DB" --id user-1 --type user 
 go run ./cmd/autent-example client create --db "$DB" --id cli-1 --type cli --name "CLI"
 go run ./cmd/autent-example policy load-demo --db "$DB"
 go run ./cmd/autent-example session issue --db "$DB" --principal user-1 --client cli-1
+go run ./cmd/autent-example session list --db "$DB" --state active
 ```
 
-To exercise shared-database mode, repeat the same flow with `--db-prefix autent_` on every command.
+To exercise shared-database mode, use the same SQLite file that already contains host-application tables and keep a dedicated `--db-prefix` such as `autent_` on every command.
 
 Take the returned `session_id` and `session_secret`, then:
 
@@ -107,6 +108,7 @@ go run ./cmd/autent-example authz check --db "$DB" \
 - `grant approve` resolves the grant
 - next identical `mutate` returns `allow`
 - next identical `mutate` again returns `grant_required` when the one-time grant is exhausted
+- `session list --state active` returns the current caller-safe session metadata without verifier-side hashes
 - the post-revoke `authz check` returns `invalid`
 
 To test the rest of the grant lifecycle, create another pending grant request and then run either:

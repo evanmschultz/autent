@@ -30,6 +30,10 @@ Flow:
 4. `tillsyn` asks `autent` for a decision
 5. `tillsyn` keeps hierarchy-aware downstream behavior local
 
+For operator or admin views, `tillsyn` can use `autent` to list sessions, grants, and audit events.
+Generic filters exist today for sessions and audit events, and `tillsyn` can apply project or hierarchy-specific filtering inside `tillsyn`.
+`tillsyn` should still treat those views as privileged operator capabilities and authorize them explicitly.
+
 ## Example Resource Mappings
 
 Examples for `tillsyn`:
@@ -42,3 +46,15 @@ Examples for `tillsyn`:
 
 `tillsyn` already has real enforcement behavior, but its auth-like semantics are tightly coupled to its own hierarchy.
 `autent` should absorb the generic session/authz/grant/audit foundation while leaving hierarchy-specific scope derivation inside `tillsyn`.
+
+## Storage and Listing Choices To Confirm
+
+Before wiring `tillsyn` to `autent`, confirm these choices with the user:
+
+- whether auth state should live in a dedicated `autent` database or inside `tillsyn`'s existing database
+- whether that storage should be scoped per project, per branch or workspace, or shared more broadly
+- which operator-facing views should exist for active sessions, pending grants, and audit history
+
+`autent` should not choose those storage boundaries for `tillsyn`.
+It should provide generic auth-owned list primitives plus generic filters where they make sense.
+`tillsyn` should decide how those primitives map onto its own hierarchy and project views.

@@ -253,6 +253,57 @@ func TestRunGrantDenyAndCancel(t *testing.T) {
 	}
 }
 
+// TestRunSessionList verifies the example CLI exposes caller-safe session listing filters.
+func TestRunSessionList(t *testing.T) {
+	t.Parallel()
+
+	dbPath := filepath.Join(t.TempDir(), "autent.db")
+
+	runCommand := func(args ...string) []byte {
+		t.Helper()
+
+		var out bytes.Buffer
+		if err := run(args, &out); err != nil {
+			t.Fatalf("run(%v) error = %v", args, err)
+		}
+		return out.Bytes()
+	}
+
+	runCommand("principal", "create", "--db", dbPath, "--id", "principal-1", "--type", "user", "--name", "User One")
+	runCommand("client", "create", "--db", dbPath, "--id", "client-1", "--type", "cli", "--name", "CLI")
+
+	sessionPayload := runCommand("session", "issue", "--db", dbPath, "--principal", "principal-1", "--client", "client-1")
+	var issued struct {
+		SessionID string `json:"session_id"`
+	}
+	if err := json.Unmarshal(sessionPayload, &issued); err != nil {
+		t.Fatalf("json.Unmarshal(session issue) error = %v", err)
+	}
+
+	activePayload := runCommand("session", "list", "--db", dbPath, "--principal", "principal-1", "--state", "active")
+	if strings.Contains(string(activePayload), "\"SecretHash\"") {
+		t.Fatalf("session list output leaked SecretHash: %s", activePayload)
+	}
+	var activeSessions []sessionView
+	if err := json.Unmarshal(activePayload, &activeSessions); err != nil {
+		t.Fatalf("json.Unmarshal(session list active) error = %v", err)
+	}
+	if len(activeSessions) != 1 || activeSessions[0].ID != issued.SessionID {
+		t.Fatalf("activeSessions = %+v, want one active session %q", activeSessions, issued.SessionID)
+	}
+
+	runCommand("session", "revoke", "--db", dbPath, "--session", issued.SessionID, "--reason", "done")
+
+	revokedPayload := runCommand("session", "list", "--db", dbPath, "--state", "revoked", "--limit", "1")
+	var revokedSessions []sessionView
+	if err := json.Unmarshal(revokedPayload, &revokedSessions); err != nil {
+		t.Fatalf("json.Unmarshal(session list revoked) error = %v", err)
+	}
+	if len(revokedSessions) != 1 || revokedSessions[0].ID != issued.SessionID {
+		t.Fatalf("revokedSessions = %+v, want one revoked session %q", revokedSessions, issued.SessionID)
+	}
+}
+
 // TestMainFailure verifies the process entrypoint writes errors and exits non-zero.
 func TestMainFailure(t *testing.T) {
 	originalStdout := stdout

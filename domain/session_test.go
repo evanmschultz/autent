@@ -1,7 +1,9 @@
 package domain
 
 import (
+	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 )
@@ -96,5 +98,75 @@ func TestStoredSessionViewRedactsVerifierState(t *testing.T) {
 	view.Metadata["scope"] = "changed"
 	if session.Metadata["scope"] != "current" {
 		t.Fatalf("session.Metadata mutated through view: %+v", session.Metadata)
+	}
+}
+
+// TestStoredSessionSecretHashAccessorReturnsCopy verifies verifier-side hash access stays defensive.
+func TestStoredSessionSecretHashAccessorReturnsCopy(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.March, 14, 12, 0, 0, 0, time.UTC)
+	session, err := NewStoredSession(StoredSessionInput{
+		ID:          "session-1",
+		PrincipalID: "principal-1",
+		ClientID:    "client-1",
+		SecretHash:  []byte("hash"),
+		ExpiresAt:   now.Add(time.Hour),
+	}, now)
+	if err != nil {
+		t.Fatalf("NewStoredSession() error = %v", err)
+	}
+
+	hash := session.SecretHash()
+	hash[0] = 'X'
+	if string(session.SecretHash()) != "hash" {
+		t.Fatalf("session.SecretHash() mutated underlying verifier state: %q", session.SecretHash())
+	}
+}
+
+// TestStoredSessionJSONMarshalDoesNotLeakVerifierState verifies generic JSON output stays caller-safe.
+func TestStoredSessionJSONMarshalDoesNotLeakVerifierState(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.March, 14, 12, 0, 0, 0, time.UTC)
+	session, err := NewStoredSession(StoredSessionInput{
+		ID:          "session-1",
+		PrincipalID: "principal-1",
+		ClientID:    "client-1",
+		SecretHash:  []byte("hash"),
+		ExpiresAt:   now.Add(time.Hour),
+	}, now)
+	if err != nil {
+		t.Fatalf("NewStoredSession() error = %v", err)
+	}
+
+	payload, err := json.Marshal(session)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+	if strings.Contains(string(payload), "SecretHash") || strings.Contains(string(payload), "hash") {
+		t.Fatalf("json.Marshal() leaked verifier-side material: %s", payload)
+	}
+}
+
+// TestStoredSessionStringRedactsVerifierState verifies generic formatting does not dump verifier-side hashes.
+func TestStoredSessionStringRedactsVerifierState(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.March, 14, 12, 0, 0, 0, time.UTC)
+	session, err := NewStoredSession(StoredSessionInput{
+		ID:          "session-1",
+		PrincipalID: "principal-1",
+		ClientID:    "client-1",
+		SecretHash:  []byte("hash"),
+		ExpiresAt:   now.Add(time.Hour),
+	}, now)
+	if err != nil {
+		t.Fatalf("NewStoredSession() error = %v", err)
+	}
+
+	formatted := session.String()
+	if strings.Contains(formatted, "hash") || strings.Contains(formatted, "secretHash:[") {
+		t.Fatalf("session.String() leaked verifier-side material: %s", formatted)
 	}
 }

@@ -162,15 +162,15 @@ func (s *Store) UpdateSession(_ context.Context, session domain.StoredSession) e
 	return nil
 }
 
-// ListSessions returns all stored verifier-side session records ordered by id.
-func (s *Store) ListSessions(_ context.Context) ([]domain.StoredSession, error) {
+// ListSessions returns all caller-safe session metadata ordered by id.
+func (s *Store) ListSessions(_ context.Context) ([]domain.Session, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	out := make([]domain.StoredSession, 0, len(s.sessions))
+	out := make([]domain.Session, 0, len(s.sessions))
 	for _, session := range s.sessions {
-		out = append(out, cloneSession(session))
+		out = append(out, session.View())
 	}
-	slices.SortFunc(out, func(a, b domain.StoredSession) int { return strings.Compare(a.ID, b.ID) })
+	slices.SortFunc(out, func(a, b domain.Session) int { return strings.Compare(a.ID, b.ID) })
 	return out, nil
 }
 
@@ -457,13 +457,13 @@ func (s lockedStore) UpdateSession(_ context.Context, session domain.StoredSessi
 	return nil
 }
 
-// ListSessions returns all verifier-side session records from the transaction-local clone.
-func (s lockedStore) ListSessions(_ context.Context) ([]domain.StoredSession, error) {
-	out := make([]domain.StoredSession, 0, len(s.base.sessions))
+// ListSessions returns all caller-safe session metadata from the transaction-local clone.
+func (s lockedStore) ListSessions(_ context.Context) ([]domain.Session, error) {
+	out := make([]domain.Session, 0, len(s.base.sessions))
 	for _, session := range s.base.sessions {
-		out = append(out, cloneSession(session))
+		out = append(out, session.View())
 	}
-	slices.SortFunc(out, func(a, b domain.StoredSession) int { return strings.Compare(a.ID, b.ID) })
+	slices.SortFunc(out, func(a, b domain.Session) int { return strings.Compare(a.ID, b.ID) })
 	return out, nil
 }
 
@@ -658,22 +658,7 @@ func cloneClientMap(in map[string]domain.Client) map[string]domain.Client {
 
 // cloneSession returns one deep-copied stored session value.
 func cloneSession(session domain.StoredSession) domain.StoredSession {
-	hash := make([]byte, len(session.SecretHash))
-	copy(hash, session.SecretHash)
-	return domain.StoredSession{
-		Session: domain.Session{
-			ID:               session.ID,
-			PrincipalID:      session.PrincipalID,
-			ClientID:         session.ClientID,
-			IssuedAt:         session.IssuedAt,
-			ExpiresAt:        session.ExpiresAt,
-			LastSeenAt:       session.LastSeenAt,
-			RevokedAt:        copyTime(session.RevokedAt),
-			RevocationReason: session.RevocationReason,
-			Metadata:         copyStringMap(session.Metadata),
-		},
-		SecretHash: hash,
-	}
+	return session.Clone()
 }
 
 // cloneSessionMap returns one deep copy of a stored-session map.

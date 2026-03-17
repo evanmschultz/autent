@@ -51,6 +51,8 @@ var (
 	ErrGrantExpired = errors.New("grant expired")
 	// ErrInvalidGrantState reports that a grant state is unsupported or invalid for the transition.
 	ErrInvalidGrantState = errors.New("invalid grant state")
+	// ErrInvalidFilter reports that a list or query filter is malformed.
+	ErrInvalidFilter = errors.New("invalid filter")
 	// ErrInvalidConfig reports that service wiring is incomplete or malformed.
 	ErrInvalidConfig = errors.New("invalid config")
 )

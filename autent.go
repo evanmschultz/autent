@@ -14,6 +14,23 @@ type Service = app.Service
 // SessionView re-exports the caller-safe session view returned by the service.
 type SessionView = app.SessionView
 
+// SessionState re-exports the caller-facing session state filter values.
+type SessionState = app.SessionState
+
+const (
+	// SessionStateAny re-exports the unfiltered session lifecycle selector.
+	SessionStateAny = app.SessionStateAny
+	// SessionStateActive re-exports the active-session lifecycle selector.
+	SessionStateActive = app.SessionStateActive
+	// SessionStateRevoked re-exports the revoked-session lifecycle selector.
+	SessionStateRevoked = app.SessionStateRevoked
+	// SessionStateExpired re-exports the expired-session lifecycle selector.
+	SessionStateExpired = app.SessionStateExpired
+)
+
+// SessionFilter re-exports the caller-facing session list filter.
+type SessionFilter = app.SessionFilter
+
 // IssuedSession re-exports the issued-session bundle returned by the service.
 type IssuedSession = app.IssuedSession
 
