@@ -6,7 +6,7 @@
 /AGENTS.md @evanschultz
 /SECURITY.md @evanschultz
 /CODE_OF_CONDUCT.md @evanschultz
-/Justfile @evanschultz
+/magefiles/ @evanschultz
 /.goreleaser.yml @evanschultz
 /docs/ @evanschultz
 /cmd/ @evanschultz

@@ -118,11 +118,11 @@ When integrating consumer concepts, keep `autent` generic:
 
 ## 6) Testing and Automation
 
-- Use `just` recipes as the source of truth for local automation
-- During implementation, run `just check` after meaningful increments when practical
-- When Go code, `Justfile`, or workflow files change, finish with `just ci` before handoff if the environment supports it
-- Keep `just ci` aligned with the required GitHub Actions gate
-- Prefer package-scoped loops with `just test-pkg <pkg>` for fast iteration
+- Use `mage` targets as the source of truth for local automation
+- During implementation, run `mage check` after meaningful increments when practical
+- When Go code, `magefiles/`, or workflow files change, finish with `mage ci` before handoff if the environment supports it
+- Keep `mage ci` aligned with the required GitHub Actions gate
+- Prefer package-scoped loops with `mage test-pkg <pkg>` for fast iteration
 - Keep at least 70% coverage for packages with substantive executable logic
 - Do not add meaningless tests just to force doc-only or marker packages over the coverage threshold
 
