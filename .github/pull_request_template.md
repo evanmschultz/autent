@@ -5,8 +5,8 @@
 
 ## Validation
 
-- [ ] `just check`
-- [ ] `just ci` when practical
+- [ ] `mage check`
+- [ ] `mage ci` when practical
 - [ ] docs updated if behavior or examples changed
 - [ ] governance, CI, or release impact explained if sensitive maintainer surfaces changed
 

@@ -29,15 +29,23 @@ User-facing docs live in:
 
 ## Local Setup
 
-Required local tools are driven by the `Justfile`.
+Required local tools are driven by `magefiles/`.
 The main local gates are:
 
 ```bash
-just check
-just ci
+mage check
+mage ci
 ```
 
-`just ci` includes release configuration validation.
+Install Mage locally before using the repo targets:
+
+```bash
+go install github.com/magefile/mage@v1.17.0
+```
+
+Running `mage` from the repository root will auto-discover `magefiles/` and keep the repository root as the working directory.
+
+`mage ci` includes release configuration validation.
 Install GoReleaser locally if you do not already have it.
 On macOS with Homebrew, for example:
 
@@ -48,9 +56,9 @@ brew install goreleaser
 For faster loops, prefer package-scoped tests:
 
 ```bash
-just test-pkg ./app
-just test-pkg ./domain
-just test-pkg ./sqlite
+mage test-pkg ./app
+mage test-pkg ./domain
+mage test-pkg ./sqlite
 ```
 
 ## Coding Expectations
@@ -77,9 +85,9 @@ At minimum, consider whether the change affects:
 
 Before asking for review:
 
-- run `just check`
-- run `just ci` when practical
-- keep GitHub Actions and `Justfile` behavior aligned
+- run `mage check`
+- run `mage ci` when practical
+- keep GitHub Actions and `magefiles/` behavior aligned
 
 The release workflow exists to validate and publish tagged releases.
 Do not add unrelated packaging or deployment behavior into the core library CI path.
@@ -109,8 +117,8 @@ Contributor flow:
 
 1. create a branch from `main`
 2. make the change
-3. run `just check`
-4. run `just ci` when practical
+3. run `mage check`
+4. run `mage ci` when practical
 5. open a pull request with `gh pr create`
 
 Example:

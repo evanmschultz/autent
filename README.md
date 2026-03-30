@@ -103,13 +103,13 @@ For subagent workflows, the recommended pattern is to issue a short-lived delega
 `autent` uses three different confidence levels when talking about platform support:
 
 - build confidence: GoReleaser cross-builds the example CLI release artifacts for macOS, Linux, and Windows
-- CI confidence: `just check` runs in GitHub Actions on macOS, Linux, and Windows runners, while the heavier `just ci` gate remains Ubuntu-only
+- CI confidence: `mage check` runs in GitHub Actions on macOS, Linux, and Windows runners, while the heavier `mage ci` gate remains Ubuntu-only
 - human runtime confidence: the documented example CLI flow has been exercised by hand on macOS
 
 That means the project currently has:
 
 - cross-built example CLI artifacts for the major desktop and server targets
-- automated `just check` coverage on GitHub-hosted macOS, Linux, and Windows runners
+- automated `mage check` coverage on GitHub-hosted macOS, Linux, and Windows runners
 - human-verified runtime behavior for the documented CLI flow on macOS
 
 Be precise when describing support.
@@ -152,9 +152,21 @@ The Go module release surface is the SemVer tag itself; GoReleaser additionally 
 
 ## Local Commands
 
+Install Mage locally first:
+
 ```bash
-just check
-just ci
+go install github.com/magefile/mage@v1.17.0
+```
+
+Repository automation lives in `magefiles/`, and running `mage` from the repo root will auto-discover it.
+
+Then use the repository automation targets:
+
+```bash
+mage -l
+mage check
+mage ci
+mage test-pkg ./app
 ```
 
 ## SQLite Integration Modes

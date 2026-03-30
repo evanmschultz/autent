@@ -21,16 +21,16 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - uses: taiki-e/install-action@just
       - name: Install repo tooling
         shell: bash
         run: |
+          go install github.com/magefile/mage@v1.17.0
           go install mvdan.cc/gofumpt@v0.9.2
           go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Run smoke gate
         shell: bash
-        run: just check
+        run: mage check
 
   check-macos:
     name: check (macos-latest)
@@ -41,16 +41,16 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - uses: taiki-e/install-action@just
       - name: Install repo tooling
         shell: bash
         run: |
+          go install github.com/magefile/mage@v1.17.0
           go install mvdan.cc/gofumpt@v0.9.2
           go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Run macOS compatibility gate
         shell: bash
-        run: just check
+        run: mage check
 
   check-windows:
     name: check (windows-latest)
@@ -61,7 +61,6 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - uses: taiki-e/install-action@just
       - name: Normalize checkout line endings
         shell: bash
         run: |
@@ -70,12 +69,13 @@ jobs:
       - name: Install repo tooling
         shell: bash
         run: |
+          go install github.com/magefile/mage@v1.17.0
           go install mvdan.cc/gofumpt@v0.9.2
           go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Run Windows compatibility gate
         shell: bash
-        run: just check
+        run: mage check
 
   full-gate:
     name: full gate (ubuntu-latest)
@@ -90,14 +90,14 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - uses: taiki-e/install-action@just
       - name: Install repo tooling
         shell: bash
         run: |
+          go install github.com/magefile/mage@v1.17.0
           go install mvdan.cc/gofumpt@v0.9.2
           go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8
           go install github.com/goreleaser/goreleaser/v2@v2.14.3
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Run canonical CI gate
         shell: bash
-        run: just ci
+        run: mage ci
