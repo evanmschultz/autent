@@ -29,7 +29,10 @@ User-facing docs live in:
 
 ## Local Setup
 
+The public `github.com/evanmschultz/autent` module currently targets Go `1.24` or newer.
+
 Required local tools are driven by `magefiles/`.
+That contributor automation module currently requires Go `1.26.1` because it depends on `github.com/evanmschultz/laslig` for human-facing task output.
 The main local gates are:
 
 ```bash
@@ -37,7 +40,7 @@ mage check
 mage ci
 ```
 
-Install Mage locally before using the repo targets:
+Install Mage locally with a Go `1.26.1` or newer toolchain before using the repo targets:
 
 ```bash
 go install github.com/magefile/mage@v1.17.0

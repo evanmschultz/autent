@@ -125,6 +125,8 @@ When integrating consumer concepts, keep `autent` generic:
 - Prefer package-scoped loops with `mage test-pkg <pkg>` for fast iteration
 - Keep at least 70% coverage for packages with substantive executable logic
 - Do not add meaningless tests just to force doc-only or marker packages over the coverage threshold
+- Keep the public root module compatible with Go `1.24` or newer unless the dependency floor changes
+- Treat the contributor-facing `magefiles/` module separately; it currently requires Go `1.26.1` because of `laslig`
 
 For non-trivial changes, use subagents when they help parallelize bounded work.
 Subagents are optional, not mandatory, for very small edits.
