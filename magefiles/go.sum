@@ -36,6 +36,8 @@ github.com/dlclark/regexp2 v1.11.5 h1:Q/sSnsKerHeCkc/jSTNq1oCm7KiVgUMZRDUoRu0JQZ
 github.com/dlclark/regexp2 v1.11.5/go.mod h1:DHkYz0B9wPfa6wondMfaivmHpzrQ3v9q8cnmRbL6yW8=
 github.com/evanmschultz/laslig v0.1.1 h1:vGV9hue1xeoiRWKnV3E4c+pywx3Z1jSBUKoErct23Kw=
 github.com/evanmschultz/laslig v0.1.1/go.mod h1:7N2h1tPxjc6whmaRtl6n8JAKTd63bgBxVq/ilbWF754=
+github.com/evanmschultz/laslig v0.2.1 h1:oxC3YxefyH5G69Ma+qck6++rXrVZlTeP2pjxZ9HByQE=
+github.com/evanmschultz/laslig v0.2.1/go.mod h1:4+qYxQTo7ar8F6aLZCtwonxmjpmf4JrnVwCPQrhOOAU=
 github.com/gorilla/css v1.0.1 h1:ntNaBIghp6JmvWnxbZKANoLyuXTPZ4cAMlo6RyhlbO8=
 github.com/gorilla/css v1.0.1/go.mod h1:BvnYkspnSzMmwRK+b8/xgNPLiIuNZr6vbZBTPQ2A3b0=
 github.com/hexops/gotextdiff v1.0.3 h1:gitA9+qJrrTCsiCl7+kh75nPqQt1cx4ZkudSTLoUqJM=

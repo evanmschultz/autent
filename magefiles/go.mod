@@ -2,7 +2,7 @@ module github.com/evanmschultz/autent/magefiles
 
 go 1.26.1
 
-require github.com/evanmschultz/laslig v0.1.1
+require github.com/evanmschultz/laslig v0.2.1
 
 require (
 	charm.land/glamour/v2 v2.0.0 // indirect
