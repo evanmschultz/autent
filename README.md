@@ -150,9 +150,17 @@ No separate package registry setup is required.
 The Go module release surface is the SemVer tag itself; GoReleaser additionally publishes GitHub release assets such as the example CLI binary for people who want them.
 `pkg.go.dev` will index tagged versions after the module is fetched or discovered publicly, and it will render the root-package docs, exported facade types, and subpackage docs from this repository's public Go API.
 
+## Go Version Support
+
+The public `github.com/evanmschultz/autent` module currently requires Go `1.24` or newer.
+
+Repository contributor automation is a separate concern.
+The committed `magefiles/` module currently requires Go `1.26.1` because its human-facing task output depends on `github.com/evanmschultz/laslig`.
+That higher tooling floor does not change the minimum Go version for applications that import `autent` as a library.
+
 ## Local Commands
 
-Install Mage locally first:
+If you are contributing to this repository, install Mage locally with a Go `1.26.1` or newer toolchain first:
 
 ```bash
 go install github.com/magefile/mage@v1.17.0
