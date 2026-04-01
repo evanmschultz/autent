@@ -127,6 +127,9 @@ When integrating consumer concepts, keep `autent` generic:
 - Do not add meaningless tests just to force doc-only or marker packages over the coverage threshold
 - Keep the public root module compatible with Go `1.24` or newer unless the dependency floor changes
 - Treat the contributor-facing `magefiles/` module separately; it currently requires Go `1.26.1` because of `laslig`
+- Before opening a PR, check for newer versions of direct dependencies in the module being changed
+- Prefer keeping direct dependencies current, but do not update transitive-only dependencies just because newer versions exist
+- For every direct-dependency update, confirm it does not force code changes, break checks, or raise the public module floor without an explicit decision
 
 For non-trivial changes, use subagents when they help parallelize bounded work.
 Subagents are optional, not mandatory, for very small edits.
